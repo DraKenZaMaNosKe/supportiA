@@ -38,6 +38,10 @@ $GoogleSheetURL = "https://script.google.com/macros/s/AKfycbw74FizN4Uql3ZIp4sWT9
 $Script:SoftwareInstalado = @()
 $Script:UsuarioOriginal = $env:USERNAME
 
+# Nombres de grupos locales via SID (independiente del idioma de Windows)
+$GrupoAdmin = (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-32-544")).Translate([System.Security.Principal.NTAccount]).Value.Split('\')[-1]
+$GrupoUsuarios = (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-32-545")).Translate([System.Security.Principal.NTAccount]).Value.Split('\')[-1]
+
 # --- FUNCIONES AUXILIARES ---
 
 function Write-Log {
@@ -553,10 +557,18 @@ function Remove-OfficePrevio {
         }
     }
 
-    # --- 3. Verificar que se elimino ---
+    # --- 3. Verificar que se elimino (ambos paths de registro) ---
     Start-Sleep -Seconds 5
-    $Restante = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
-        Where-Object { $_.DisplayName -like "*Microsoft 365*" -or $_.DisplayName -like "*Office 365*" }
+    $Restante = @()
+    foreach ($rp in $RegPaths) {
+        Get-ItemProperty $rp -ErrorAction SilentlyContinue | Where-Object {
+            $_.DisplayName -and (
+                $_.DisplayName -like "*Microsoft 365*" -or
+                $_.DisplayName -like "*Office 365*" -or
+                $_.DisplayName -like "*OneNote*es-es*"
+            )
+        } | ForEach-Object { $Restante += $_ }
+    }
 
     if ($Restante) {
         Write-Log "Aun quedan restos de Office, intentando limpieza final..." "WARN"
@@ -588,7 +600,7 @@ function New-UsuarioSoporte {
     }
 
     # Asegurar que es administrador
-    Add-LocalGroupMember -Group "Administradores" -Member $UsuarioSoporte -ErrorAction SilentlyContinue
+    Add-LocalGroupMember -Group $GrupoAdmin -Member $UsuarioSoporte -ErrorAction SilentlyContinue
     Write-Log "Usuario '$UsuarioSoporte' es Administrador" "OK"
     $Script:SoftwareInstalado += "Usuario Soporte"
 }
@@ -610,10 +622,10 @@ function New-UsuarioEquipo {
     }
 
     # Asegurar que es usuario estandar (grupo Usuarios)
-    Add-LocalGroupMember -Group "Usuarios" -Member $NombreUsuario -ErrorAction SilentlyContinue
+    Add-LocalGroupMember -Group $GrupoUsuarios -Member $NombreUsuario -ErrorAction SilentlyContinue
 
     # Asegurar que NO es administrador
-    Remove-LocalGroupMember -Group "Administradores" -Member $NombreUsuario -ErrorAction SilentlyContinue
+    Remove-LocalGroupMember -Group $GrupoAdmin -Member $NombreUsuario -ErrorAction SilentlyContinue
 
     # Habilitar el usuario
     Enable-LocalUser -Name $NombreUsuario -ErrorAction SilentlyContinue
@@ -913,6 +925,8 @@ function Set-HoraAutomatica {
 }
 
 function Set-TemaOscuro {
+    param([string]$NumInventario)
+
     Write-StepHeader -Step 9 -Title "CONFIGURANDO TEMA OSCURO PERSONALIZADO"
     Show-ProgressCosmos -Step 9
 
@@ -944,14 +958,15 @@ function Set-TemaOscuro {
     $ColorAccent = $PaletaAcento[$Seed]
 
     # Windows AccentColor usa formato ABGR: 0xFF + BB + GG + RR
+    # Usar BitConverter para obtener representacion Int32 correcta (DWord requiere signed int)
     $HexAccent = "0xFF{0:X2}{1:X2}{2:X2}" -f $ColorAccent.B, $ColorAccent.G, $ColorAccent.R
-    $AccentABGR = [Convert]::ToInt64($HexAccent, 16)
+    $AccentABGR = [BitConverter]::ToInt32([BitConverter]::GetBytes([Convert]::ToUInt32($HexAccent, 16)), 0)
     # Version mas oscura para elementos inactivos
     $R2 = [Math]::Max(0, $ColorAccent.R - 30)
     $G2 = [Math]::Max(0, $ColorAccent.G - 30)
     $B2 = [Math]::Max(0, $ColorAccent.B - 30)
     $HexMenu = "0xFF{0:X2}{1:X2}{2:X2}" -f $B2, $G2, $R2
-    $AccentMenuABGR = [Convert]::ToInt64($HexMenu, 16)
+    $AccentMenuABGR = [BitConverter]::ToInt32([BitConverter]::GetBytes([Convert]::ToUInt32($HexMenu, 16)), 0)
 
     $RegPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize"
     Set-ItemProperty -Path $RegPath -Name "AppsUseLightTheme" -Value 0 -Type DWord -ErrorAction SilentlyContinue
@@ -1007,6 +1022,8 @@ function Set-TemaOscuro {
 }
 
 function Set-FondoPantalla {
+    param([string]$NumInventario)
+
     Write-StepHeader -Step 14 -Title "ESTABLECIENDO FONDO DE PANTALLA"
     Show-ProgressCosmos -Step 14
 
@@ -1669,11 +1686,11 @@ function Remove-AdminUsuarioActual {
     }
 
     # Verificar si el usuario actual es administrador
-    $EsAdmin = Get-LocalGroupMember -Group "Administradores" -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*\$UsuarioActual" }
+    $EsAdmin = Get-LocalGroupMember -Group $GrupoAdmin -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*\$UsuarioActual" }
 
     if ($EsAdmin) {
         try {
-            Remove-LocalGroupMember -Group "Administradores" -Member $UsuarioActual -ErrorAction Stop
+            Remove-LocalGroupMember -Group $GrupoAdmin -Member $UsuarioActual -ErrorAction Stop
             Write-Log "Privilegios de administrador removidos de '$UsuarioActual'" "OK"
             Write-Host "  IMPORTANTE: El usuario '$UsuarioActual' ya no es administrador" -ForegroundColor Yellow
             Write-Host "  Solo el usuario '$UsuarioSoporte' tiene privilegios de administrador" -ForegroundColor Yellow
@@ -2151,12 +2168,12 @@ New-UsuarioEquipo -NumInventario $NumInventario; Play-StepSound
 Set-ImagenesUsuarios -NumInventario $NumInventario; Play-StepSound
 Set-RedPrivada; Play-StepSound
 Set-HoraAutomatica; Play-StepSound
-Set-TemaOscuro; Play-StepSound
+Set-TemaOscuro -NumInventario $NumInventario; Play-StepSound
 Install-WinRAR; Play-StepSound
 Install-DotNet35; Play-StepSound
 Install-AcrobatReader; Play-StepSound
 Install-Chrome; Play-StepSound
-Set-FondoPantalla; Play-StepSound
+Set-FondoPantalla -NumInventario $NumInventario; Play-StepSound
 Install-Office; Play-StepSound
 Install-Dedalus; Play-StepSound
 Add-DedalusSyncStartup; Play-StepSound
