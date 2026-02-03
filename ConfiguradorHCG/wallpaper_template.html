@@ -6,7 +6,7 @@
 <style>
   /* =============================================================
      HCG WALLPAPER TEMPLATE - Hospital Civil de Guadalajara
-     Variables PowerShell: {{HOSTNAME}}, {{INVENTARIO}}, {{FECHA}}, {{EXT}}
+     Variables PowerShell: {{HOSTNAME}}, {{INVENTARIO}}, {{FECHA}}, {{EXT}}, {{DEPTO}}
      ============================================================= */
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -357,7 +357,7 @@
   <!-- BARRA INFERIOR -->
   <div class="bottom-bar">
     <span class="bottom-left">{{HOSTNAME}} &nbsp;|&nbsp; Inv. ST: {{INVENTARIO}}</span>
-    <span class="bottom-center">Soporte Tecnico &mdash; Ext. 54425</span>
+    <span class="bottom-center">{{DEPTO}}</span>
     <span class="bottom-right">{{FECHA}}</span>
   </div>
 

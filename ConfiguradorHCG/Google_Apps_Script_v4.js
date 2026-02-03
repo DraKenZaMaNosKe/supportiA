@@ -56,6 +56,12 @@ var COSMOS = {
   DISCO_CRIT_BG:   "#3a1a1a",
   DISCO_CRIT_TEXT: "#FF6666",
 
+  // OPD / NO ENCONTRADO
+  OPD_BG:          "#3a2a0a",   // Naranja/ambar oscuro fondo
+  OPD_TEXT:        "#FFA500",   // Naranja texto
+  OPD_FAA_BG:      "#4a1a1a",   // Rojo oscuro para celda FAA
+  OPD_FAA_TEXT:    "#FF4444",   // Rojo brillante para "NO ENCONTRADO"
+
   // Bordes
   BORDER_GOLD:     "#8B6914",
   BORDER_DARK:     "#333355"
@@ -344,8 +350,20 @@ function formatearFilaCosmica(sheet, fila) {
   sheet.getRange(fila, 25).setFontColor(COSMOS.PEGASUS_CYAN);
   sheet.getRange(fila, 26).setFontColor(COSMOS.PEGASUS_CYAN);
 
-  // FAA en dorado
-  sheet.getRange(fila, 24).setFontColor(COSMOS.TEXT_GOLD);
+  // FAA - color segun resultado
+  var faaValor = String(sheet.getRange(fila, 24).getValue());
+  if (faaValor == "NO ENCONTRADO") {
+    // Equipo OPD: fila ambar, FAA rojo, Departamento naranja
+    rango.setBackground(COSMOS.OPD_BG);
+    sheet.getRange(fila, 24).setBackground(COSMOS.OPD_FAA_BG)
+      .setFontColor(COSMOS.OPD_FAA_TEXT).setFontWeight("bold");
+    sheet.getRange(fila, 21).setBackground(COSMOS.OPD_BG)
+      .setFontColor(COSMOS.OPD_TEXT).setFontWeight("bold");
+  } else if (faaValor.indexOf("SI #") === 0) {
+    sheet.getRange(fila, 24).setFontColor(COSMOS.ACTIVO_TEXT).setFontWeight("bold");
+  } else {
+    sheet.getRange(fila, 24).setFontColor(COSMOS.TEXT_GOLD);
+  }
 }
 
 function colocarContadorYLeyendaCosmica(sheet) {
@@ -659,6 +677,11 @@ function doPost(e) {
       resultado = reporteSistema(data);
     } else if (accion == "diagnostico") {
       resultado = reporteDiagnostico(data);
+    } else if (accion == "verificar") {
+      // Verificar si un numero de serie esta en la lista FAA
+      var faaResult = "NO ENCONTRADO";
+      try { faaResult = buscarEnSeriesFAA(data.Serie || ""); } catch (e) { faaResult = "Error: " + e.message; }
+      resultado = jsonResponse({ status: "OK", faa: faaResult, serie: data.Serie || "" });
     } else if (accion == "tema") {
       // Aplicar tema sin UI (getUi() falla en contexto web app)
       var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -723,6 +746,12 @@ function crearRegistro(sheet, data) {
     try { resultadoFAA = buscarEnSeriesFAA(data.Serie); } catch (e) { resultadoFAA = ""; }
   }
 
+  // Si FAA = NO ENCONTRADO, auto-asignar departamento OPD
+  var departamento = data.Departamento || "";
+  if (resultadoFAA == "NO ENCONTRADO" && !departamento) {
+    departamento = "OPD";
+  }
+
   var rowData = [
     numConsecutivo,
     data.Fecha || Utilities.formatDate(new Date(), "America/Mexico_City", "dd/MM/yyyy"),
@@ -744,7 +773,7 @@ function crearRegistro(sheet, data) {
     data.FechaFab || data.Fecha || Utilities.formatDate(new Date(), "America/Mexico_City", "dd/MM/yyyy"),
     data.Garantia || calcularGarantia(),
     data.Ubicacion || "",
-    data.Departamento || "",
+    departamento,
     data.Usuario || "",
     "En proceso",
     resultadoFAA

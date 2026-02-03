@@ -37,6 +37,8 @@ $GoogleSheetURL = "https://script.google.com/macros/s/AKfycbw74FizN4Uql3ZIp4sWT9
 # Variable global para tracking de software instalado
 $Script:SoftwareInstalado = @()
 $Script:UsuarioOriginal = $env:USERNAME
+$Script:Departamento = "Soporte Tecnico - Ext. 54425"
+$Script:EsOPD = $false
 
 # Nombres de grupos locales via SID (independiente del idioma de Windows)
 $GrupoAdmin = (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-32-544")).Translate([System.Security.Principal.NTAccount]).Value.Split('\')[-1]
@@ -355,10 +357,39 @@ function Send-DatosInicio {
             Write-Host "  |  No. Serie:   $($Datos.Serie)" -ForegroundColor White
             Write-Host "  |  FILA:        $($Response.row)" -ForegroundColor Yellow
             if ($Response.faa -and $Response.faa -ne "") {
-                Write-Host "  |  FAA:         $($Response.faa)" -ForegroundColor Green
+                if ($Response.faa -eq "NO ENCONTRADO") {
+                    Write-Host "  |  FAA:         $($Response.faa)" -ForegroundColor Red
+                } else {
+                    Write-Host "  |  FAA:         $($Response.faa)" -ForegroundColor Green
+                }
             }
             Write-Host "  +------------------------------------------+" -ForegroundColor Green
             Write-Host ""
+
+            # Verificar resultado FAA - detectar equipo OPD
+            if ($Response.faa -eq "NO ENCONTRADO") {
+                # Sonido de alerta: 3 beeps
+                [Console]::Beep(800, 300); Start-Sleep -Milliseconds 100
+                [Console]::Beep(800, 300); Start-Sleep -Milliseconds 100
+                [Console]::Beep(800, 300)
+
+                Write-Host ""
+                Write-Host "  $([char]0x2716)$([char]0x2716)$([char]0x2716)  ALERTA: EQUIPO NO ENCONTRADO EN LISTA FAA  $([char]0x2716)$([char]0x2716)$([char]0x2716)" -ForegroundColor Red
+                Write-Host ""
+                Write-Host "  El numero de serie '$($Datos.Serie)' NO aparece en la lista oficial." -ForegroundColor Yellow
+                Write-Host "  Este equipo sera configurado como OPD." -ForegroundColor Yellow
+                Write-Host ""
+                $Respuesta = Read-Host "  Continuar como equipo OPD? (S/N)"
+                if ($Respuesta -ne "S" -and $Respuesta -ne "s") {
+                    Write-Host "  Configuracion cancelada." -ForegroundColor Red
+                    exit
+                }
+                $Script:Departamento = "OPD"
+                $Script:EsOPD = $true
+                Write-Host "  Configurando como equipo OPD..." -ForegroundColor Yellow
+                Write-Host ""
+            }
+
             $Script:FilaRegistro = $Response.row
             return $true
         }
@@ -496,8 +527,23 @@ function Remove-OfficePrevio {
 
     $Eliminado = $false
 
-    # --- 1. Desinstalar Office Click-to-Run (Microsoft 365, OneNote, etc.) ---
+    # --- Check idempotencia: si no hay CTR ni Office 365/OneNote, no hay nada que hacer ---
     $CTR = "C:\Program Files\Common Files\microsoft shared\ClickToRun\OfficeClickToRun.exe"
+    if (-not (Test-Path $CTR)) {
+        $RegPaths_Check = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
+        $Office365Check = @()
+        foreach ($rp in $RegPaths_Check) {
+            Get-ItemProperty $rp -ErrorAction SilentlyContinue | Where-Object {
+                $_.DisplayName -and ($_.DisplayName -like "*Microsoft 365*" -or $_.DisplayName -like "*Office 365*" -or $_.DisplayName -like "*OneNote*es-es*")
+            } | ForEach-Object { $Office365Check += $_ }
+        }
+        if (-not $Office365Check) {
+            Write-Log "No hay versiones previas de Office que remover" "INFO"
+            return
+        }
+    }
+
+    # --- 1. Desinstalar Office Click-to-Run (Microsoft 365, OneNote, etc.) ---
     if (Test-Path $CTR) {
         $Config = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" -ErrorAction SilentlyContinue
         if ($Config -and $Config.ProductReleaseIds) {
@@ -608,14 +654,16 @@ function New-UsuarioSoporte {
 function New-UsuarioEquipo {
     param([string]$NumInventario)
 
-    Write-StepHeader -Step 5 -Title "CREANDO USUARIO NORMAL ($NumInventario)"
+    $NombreUsuario = if ($Script:EsOPD) { "OPD" } else { $NumInventario }
+    $DescUsuario = if ($Script:EsOPD) { "Usuario OPD - HCG" } else { "Usuario Equipo $NumInventario - HCG FAA" }
+
+    Write-StepHeader -Step 5 -Title "CREANDO USUARIO NORMAL ($NombreUsuario)"
     Show-ProgressCosmos -Step 5
 
-    $NombreUsuario = $NumInventario
     $Existe = Get-LocalUser -Name $NombreUsuario -ErrorAction SilentlyContinue
 
     if (-not $Existe) {
-        New-LocalUser -Name $NombreUsuario -NoPassword -Description "Usuario Equipo $NumInventario - HCG FAA" -PasswordNeverExpires -UserMayNotChangePassword | Out-Null
+        New-LocalUser -Name $NombreUsuario -NoPassword -Description $DescUsuario -PasswordNeverExpires -UserMayNotChangePassword | Out-Null
         Write-Log "Usuario '$NombreUsuario' creado" "OK"
     } else {
         Write-Log "Usuario '$NombreUsuario' ya existe" "INFO"
@@ -1060,6 +1108,7 @@ function Set-FondoPantalla {
             $HTMLContent = $HTMLContent -replace '\{\{INVENTARIO\}\}', $NumInventario
             $HTMLContent = $HTMLContent -replace '\{\{FECHA\}\}', $FechaConfig
             $HTMLContent = $HTMLContent -replace '\{\{EXT\}\}', '54425'
+            $HTMLContent = $HTMLContent -replace '\{\{DEPTO\}\}', $Script:Departamento
 
             # Guardar HTML personalizado (sin BOM para compatibilidad con Chrome)
             $HTMLLocal = "$TempDir\wallpaper_render.html"
@@ -1152,7 +1201,7 @@ function Set-FondoPantalla {
                 $Gfx.DrawString($TextoIzq, $FontInfo, $BrushWhite, $RectIzq, $SF)
 
                 $SF.Alignment = [System.Drawing.StringAlignment]::Far
-                $TextoDer = "Soporte Tecnico - Ext. 54425  |  Hospital Civil FAA  "
+                $TextoDer = "$($Script:Departamento)  |  Hospital Civil FAA  "
                 $RectDer = New-Object System.Drawing.RectangleF(($W / 2), $YFranja, (($W / 2) - 10), $AlturaFranja)
                 $Gfx.DrawString($TextoDer, $FontInfo, $BrushGray, $RectDer, $SF)
 
@@ -1461,6 +1510,16 @@ function Install-Office {
     Write-StepHeader -Step 15 -Title "INSTALANDO OFFICE 2007 (Word, Excel, PowerPoint)"
     Show-ProgressCosmos -Step 15
 
+    # Check idempotencia: Office 2007 ya instalado
+    $OfficeYaInstalado = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
+        Where-Object { $_.DisplayName -and ($_.DisplayName -like "*Office*2007*" -or $_.DisplayName -like "*Office Enterprise*") }
+    if ($OfficeYaInstalado) {
+        $NombreOffice = ($OfficeYaInstalado | Select-Object -First 1).DisplayName
+        Write-Log "Office ya esta instalado: $NombreOffice" "INFO"
+        $Script:SoftwareInstalado += "Office 2007 (ya instalado)"
+        return
+    }
+
     # Ruta exacta del setup de Office 2007
     $SetupPath = "$RutaOffice\Ofice2007\setup.exe"
     $SerialFile = "$RutaOffice\Ofice2007\SERIAL.txt"
@@ -1513,6 +1572,13 @@ function Install-Office {
 function Install-Dedalus {
     Write-StepHeader -Step 16 -Title "INSTALANDO DEDALUS EXPEDIENTE CLINICO"
     Show-ProgressCosmos -Step 16
+
+    # Check idempotencia: Dedalus ya instalado con contenido
+    if ((Test-Path "C:\Dedalus\xHIS") -and (Get-ChildItem "C:\Dedalus\xHIS" -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0) {
+        Write-Log "Dedalus ya esta instalado en C:\Dedalus\xHIS" "INFO"
+        $Script:SoftwareInstalado += "Dedalus (ya instalado)"
+        return
+    }
 
     $Netlogon = "$RutaDedalus\netlogon6.bat"
 
@@ -2154,6 +2220,157 @@ try {
     $Script:SoftwareInstalado += "Reporte Diagnostico"
 }
 
+function Verify-Configuracion {
+    param([string]$NumInventario)
+
+    $NombreUsuarioEsperado = if ($Script:EsOPD) { "OPD" } else { $NumInventario }
+
+    Write-Host ""
+    Write-Host "  ======================================================" -ForegroundColor DarkYellow
+    Write-Host "    VERIFICACION FINAL DE CONFIGURACION" -ForegroundColor Yellow
+    Write-Host "  ======================================================" -ForegroundColor DarkYellow
+    Write-Host ""
+
+    $Checks = @()
+    $Errores = 0
+
+    # --- Usuarios ---
+    $SoporteUser = Get-LocalUser -Name $UsuarioSoporte -ErrorAction SilentlyContinue
+    if ($SoporteUser -and $SoporteUser.Enabled) {
+        $EsAdmin = Get-LocalGroupMember -Group $GrupoAdmin -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*\$UsuarioSoporte" }
+        if ($EsAdmin) {
+            $Checks += @{ Status = "OK"; Msg = "Usuario $UsuarioSoporte existe (Administrador)" }
+        } else {
+            $Checks += @{ Status = "WARN"; Msg = "Usuario $UsuarioSoporte existe pero NO es Administrador" }
+            Add-LocalGroupMember -Group $GrupoAdmin -Member $UsuarioSoporte -ErrorAction SilentlyContinue
+        }
+    } else {
+        $Checks += @{ Status = "FAIL"; Msg = "Usuario $UsuarioSoporte NO existe o esta deshabilitado" }
+        $Errores++
+    }
+
+    $NormalUser = Get-LocalUser -Name $NombreUsuarioEsperado -ErrorAction SilentlyContinue
+    if ($NormalUser -and $NormalUser.Enabled) {
+        $Checks += @{ Status = "OK"; Msg = "Usuario $NombreUsuarioEsperado existe (Estandar)" }
+    } else {
+        $Checks += @{ Status = "FAIL"; Msg = "Usuario $NombreUsuarioEsperado NO existe - intentando crear..." }
+        $Errores++
+        try {
+            $DescUsuario = if ($Script:EsOPD) { "Usuario OPD - HCG" } else { "Usuario Equipo $NumInventario - HCG FAA" }
+            New-LocalUser -Name $NombreUsuarioEsperado -NoPassword -Description $DescUsuario -PasswordNeverExpires -UserMayNotChangePassword -ErrorAction Stop | Out-Null
+            Add-LocalGroupMember -Group $GrupoUsuarios -Member $NombreUsuarioEsperado -ErrorAction SilentlyContinue
+            Enable-LocalUser -Name $NombreUsuarioEsperado -ErrorAction SilentlyContinue
+            $Checks += @{ Status = "OK"; Msg = "Usuario $NombreUsuarioEsperado creado exitosamente" }
+            $Errores--
+        } catch {
+            $Checks += @{ Status = "FAIL"; Msg = "No se pudo crear usuario: $($_.Exception.Message)" }
+        }
+    }
+
+    # --- Software ---
+    $RegPaths = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
+    $AppsInstaladas = @()
+    foreach ($rp in $RegPaths) {
+        Get-ItemProperty $rp -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName } | ForEach-Object { $AppsInstaladas += $_.DisplayName }
+    }
+
+    # WinRAR
+    if ($AppsInstaladas | Where-Object { $_ -like "*WinRAR*" }) {
+        $Checks += @{ Status = "OK"; Msg = "WinRAR instalado" }
+    } else {
+        $Checks += @{ Status = "WARN"; Msg = "WinRAR NO detectado" }
+    }
+
+    # .NET 3.5
+    $DotNet35 = Get-WindowsOptionalFeature -Online -FeatureName "NetFx3" -ErrorAction SilentlyContinue
+    if ($DotNet35 -and $DotNet35.State -eq "Enabled") {
+        $Checks += @{ Status = "OK"; Msg = ".NET 3.5 habilitado" }
+    } else {
+        $Checks += @{ Status = "WARN"; Msg = ".NET 3.5 NO habilitado" }
+    }
+
+    # Chrome
+    if (Test-Path "C:\Program Files\Google\Chrome\Application\chrome.exe") {
+        $Checks += @{ Status = "OK"; Msg = "Chrome instalado" }
+    } else {
+        $Checks += @{ Status = "WARN"; Msg = "Chrome NO detectado" }
+    }
+
+    # Acrobat Reader
+    if ($AppsInstaladas | Where-Object { $_ -like "*Acrobat*Reader*" -or $_ -like "*Adobe*Reader*" }) {
+        $Checks += @{ Status = "OK"; Msg = "Acrobat Reader instalado" }
+    } else {
+        $Checks += @{ Status = "WARN"; Msg = "Acrobat Reader NO detectado" }
+    }
+
+    # Office
+    if ($AppsInstaladas | Where-Object { $_ -like "*Office*" }) {
+        $Checks += @{ Status = "OK"; Msg = "Office detectado" }
+    } else {
+        $Checks += @{ Status = "WARN"; Msg = "Office NO detectado" }
+    }
+
+    # ESET Antivirus
+    $ESETService = Get-Service -Name "ekrn" -ErrorAction SilentlyContinue
+    if ($ESETService -and $ESETService.Status -eq "Running") {
+        $Checks += @{ Status = "OK"; Msg = "ESET Antivirus activo" }
+    } elseif ($ESETService) {
+        $Checks += @{ Status = "WARN"; Msg = "ESET Antivirus instalado pero no corriendo" }
+    } else {
+        $Checks += @{ Status = "WARN"; Msg = "ESET Antivirus NO detectado" }
+    }
+
+    # --- Tareas programadas ---
+    foreach ($tarea in @("HCG_ReporteIP", "HCG_ReporteSistema", "HCG_ReporteDiagnostico")) {
+        if (Get-ScheduledTask -TaskName $tarea -ErrorAction SilentlyContinue) {
+            $Checks += @{ Status = "OK"; Msg = "Tarea $tarea configurada" }
+        } else {
+            $Checks += @{ Status = "WARN"; Msg = "Tarea $tarea NO encontrada" }
+        }
+    }
+
+    # --- Equipo renombrado ---
+    $NombreEsperado = "PC-$NumInventario"
+    if ($env:COMPUTERNAME -eq $NombreEsperado) {
+        $Checks += @{ Status = "OK"; Msg = "Equipo renombrado: $NombreEsperado" }
+    } else {
+        $Checks += @{ Status = "WARN"; Msg = "Equipo aun se llama '$env:COMPUTERNAME' (se renombrara a '$NombreEsperado' tras reinicio)" }
+    }
+
+    # --- Fondo de pantalla ---
+    $FondoHCG = "C:\ProgramData\HCG\HCG_Fondo.png"
+    $FondoHCGJpg = "C:\ProgramData\HCG\HCG_Fondo.jpg"
+    if ((Test-Path $FondoHCG) -or (Test-Path $FondoHCGJpg)) {
+        $Checks += @{ Status = "OK"; Msg = "Fondo de pantalla configurado" }
+    } else {
+        $Checks += @{ Status = "WARN"; Msg = "Fondo de pantalla NO encontrado" }
+    }
+
+    # --- Mostrar resultados ---
+    foreach ($check in $Checks) {
+        $Icono = switch ($check.Status) {
+            "OK"   { "[OK]" }
+            "WARN" { "[!!]" }
+            "FAIL" { "[XX]" }
+        }
+        $Color = switch ($check.Status) {
+            "OK"   { "Green" }
+            "WARN" { "Yellow" }
+            "FAIL" { "Red" }
+        }
+        Write-Host "  $Icono $($check.Msg)" -ForegroundColor $Color
+    }
+
+    $TotalOK = ($Checks | Where-Object { $_.Status -eq "OK" }).Count
+    $TotalWarn = ($Checks | Where-Object { $_.Status -eq "WARN" }).Count
+    $TotalFail = ($Checks | Where-Object { $_.Status -eq "FAIL" }).Count
+
+    Write-Host ""
+    Write-Host "  Resultado: $TotalOK OK, $TotalWarn advertencias, $TotalFail errores" -ForegroundColor $(if ($TotalFail -gt 0) { "Red" } elseif ($TotalWarn -gt 0) { "Yellow" } else { "Green" })
+    Write-Host "  ======================================================" -ForegroundColor DarkYellow
+    Write-Host ""
+}
+
 # =============================================================================
 # EJECUCION PRINCIPAL
 # =============================================================================
@@ -2221,6 +2438,9 @@ try {
     Write-Log "No se pudo renombrar equipo a '$NuevoNombre': $($_.Exception.Message)" "WARN"
 }
 
+# Verificacion final
+Verify-Configuracion -NumInventario $NumInventario
+
 # PASO 24: Actualizar Google Sheets
 Send-DatosFin -InvST $NumInventario
 Play-StepSound
@@ -2259,8 +2479,9 @@ Write-Host ""
 Write-Host "  $Spark SOFTWARE INSTALADO:" -ForegroundColor DarkYellow
 Write-Host "  $Arrow $($Script:SoftwareInstalado -join ', ')" -ForegroundColor Cyan
 Write-Host ""
+$NombreUsuarioFinal = if ($Script:EsOPD) { "OPD" } else { $NumInventario }
 Write-Host "  $Spark SEGURIDAD:" -ForegroundColor DarkYellow
-Write-Host "  $Arrow Usuario normal: $NumInventario (auto-login, estandar)" -ForegroundColor White
+Write-Host "  $Arrow Usuario normal: $NombreUsuarioFinal (auto-login, estandar)" -ForegroundColor White
 Write-Host "  $Arrow Usuario admin: $UsuarioSoporte (solo soporte tecnico)" -ForegroundColor White
 Write-Host "  $Arrow Usuario '$($Script:UsuarioOriginal)' sin privilegios de admin" -ForegroundColor White
 Write-Host ""
