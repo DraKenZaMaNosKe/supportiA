@@ -816,10 +816,70 @@ public class UserTileAPI {
 "@ -ErrorAction SilentlyContinue
 
         [UserTileAPI]::SetUserTile($UsuarioSoporte, 0, $AvatarSoporte)
-        Write-Log "Imagen de perfil: '$UsuarioSoporte' configurada" "OK"
+        Write-Log "Imagen de perfil: '$UsuarioSoporte' configurada (Panel de Control)" "OK"
 
         [UserTileAPI]::SetUserTile($NumInventario, 0, $AvatarUsuario)
-        Write-Log "Imagen de perfil: '$NumInventario' -> $($Colores.Nombre)" "OK"
+        Write-Log "Imagen de perfil: '$NumInventario' -> $($Colores.Nombre) (Panel de Control)" "OK"
+
+        # =================================================================
+        # APLICAR AVATARES A WINDOWS SETTINGS (App de Configuracion)
+        # Windows Settings lee de AccountPicture en el registro HKLM
+        # y no usa la API SetUserTile legacy de shell32.dll
+        # =================================================================
+        $TamanosAvatar = @(448, 240, 192, 96, 64, 48, 40, 32)
+
+        foreach ($DatosUsuario in @(
+            @{ Nombre = $UsuarioSoporte; Fuente = $AvatarSoporte },
+            @{ Nombre = $NumInventario; Fuente = $AvatarUsuario }
+        )) {
+            try {
+                $NombreUser = $DatosUsuario.Nombre
+                $ImagenFuente = $DatosUsuario.Fuente
+
+                # Obtener SID del usuario
+                $SID = (New-Object System.Security.Principal.NTAccount($NombreUser)).Translate(
+                    [System.Security.Principal.SecurityIdentifier]
+                ).Value
+
+                # Crear carpeta persistente para avatares
+                $CarpetaAvatar = "C:\ProgramData\HCG\avatars\$SID"
+                if (-not (Test-Path $CarpetaAvatar)) {
+                    New-Item -ItemType Directory -Path $CarpetaAvatar -Force | Out-Null
+                }
+
+                # Cargar imagen fuente (448x448)
+                $ImgOriginal = [System.Drawing.Image]::FromFile($ImagenFuente)
+
+                # Crear clave de registro para AccountPicture
+                $RegPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AccountPicture\Users\$SID"
+                if (-not (Test-Path $RegPath)) {
+                    New-Item -Path $RegPath -Force | Out-Null
+                }
+
+                # Generar imagen en cada tamano requerido por Settings
+                foreach ($Tam in $TamanosAvatar) {
+                    $ArchivoDestino = "$CarpetaAvatar\Image$Tam.jpg"
+
+                    $BmpResize = New-Object System.Drawing.Bitmap($Tam, $Tam)
+                    $GfxResize = [System.Drawing.Graphics]::FromImage($BmpResize)
+                    $GfxResize.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+                    $GfxResize.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+                    $GfxResize.DrawImage($ImgOriginal, 0, 0, $Tam, $Tam)
+                    $BmpResize.Save($ArchivoDestino, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+                    $GfxResize.Dispose()
+                    $BmpResize.Dispose()
+
+                    # Registrar ruta en el registro de Windows
+                    Set-ItemProperty -Path $RegPath -Name "Image$Tam" -Value $ArchivoDestino -Type String
+                }
+
+                $ImgOriginal.Dispose()
+                Write-Log "Avatar Settings ($NombreUser): $($TamanosAvatar.Count) tamanos registrados" "OK"
+
+            } catch {
+                Write-Log "Avatar Settings ($($DatosUsuario.Nombre)): $($_.Exception.Message)" "WARN"
+            }
+        }
 
     } catch {
         Write-Log "No se pudieron configurar imagenes: $($_.Exception.Message)" "WARN"
@@ -944,7 +1004,9 @@ function Set-FondoPantalla {
     Write-StepHeader -Step 14 -Title "ESTABLECIENDO FONDO DE PANTALLA"
     Show-ProgressCosmos -Step 14
 
-    $FondoLocal = "C:\Windows\Web\Wallpaper\HCG_Fondo.png"
+    $RutaHCG = "C:\ProgramData\HCG"
+    if (-not (Test-Path $RutaHCG)) { New-Item -ItemType Directory -Path $RutaHCG -Force | Out-Null }
+    $FondoLocal = "$RutaHCG\HCG_Fondo.png"
     $NombrePC = "PC-$NumInventario"
     $FechaConfig = Get-Date -Format "dd/MM/yyyy"
 
@@ -1025,7 +1087,7 @@ function Set-FondoPantalla {
         if (-not (Test-Path $Fondo)) { $Fondo = "$RutaAccesos\Fondo de Pantalla.jpg" }
         if (-not (Test-Path $Fondo)) { $Fondo = Find-Installer -Carpeta $RutaWallpaper -Filtro "*.jpg" }
 
-        $FondoLocal = "C:\Windows\Web\Wallpaper\HCG_Fondo.jpg"
+        $FondoLocal = "$RutaHCG\HCG_Fondo.jpg"
 
         if ($Fondo -and (Test-Path $Fondo)) {
             try {
