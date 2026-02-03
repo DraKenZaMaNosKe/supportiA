@@ -629,8 +629,16 @@ function doPost(e) {
       return jsonResponse({ status: "BUSY", mensaje: "Servidor ocupado, reintentar" });
     }
 
+    if (!e || !e.postData || !e.postData.contents) {
+      lock.releaseLock();
+      return jsonResponse({ status: "ERROR", mensaje: "No se recibieron datos POST" });
+    }
+    var data;
+    try { data = JSON.parse(e.postData.contents); } catch(parseErr) {
+      lock.releaseLock();
+      return jsonResponse({ status: "ERROR", mensaje: "JSON invalido: " + parseErr.message });
+    }
     var sheetRegistro = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
-    var data = JSON.parse(e.postData.contents);
     var accion = data.Accion || "crear";
 
     var resultado;
@@ -690,6 +698,9 @@ function doGet(e) {
 // =============================================================================
 
 function crearRegistro(sheet, data) {
+  if (!data.InvST || !data.Serie) {
+    return jsonResponse({ status: "ERROR", mensaje: "InvST y Serie son obligatorios" });
+  }
   var filaExistente = buscarEquipoPorInvST(sheet, data.InvST);
   if (filaExistente > 0) {
     sheet.getRange(filaExistente, 23).setValue("En proceso");
@@ -730,7 +741,7 @@ function crearRegistro(sheet, data) {
     formatearMAC(data.MACEthernet),
     formatearMAC(data.MACWiFi),
     data.ProductKey || "",
-    data.FechaFab || data.Fecha,
+    data.FechaFab || data.Fecha || Utilities.formatDate(new Date(), "America/Mexico_City", "dd/MM/yyyy"),
     data.Garantia || calcularGarantia(),
     data.Ubicacion || "",
     data.Departamento || "",
@@ -1505,15 +1516,6 @@ function testBuscarFAA() {
 // =============================================================================
 // FUNCIONES MANUALES - Ejecutar desde el menu
 // =============================================================================
-
-function formatearTodasLasFilas() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var lastRow = obtenerUltimaFilaDatos(sheet);
-  for (var fila = 5; fila <= lastRow; fila++) {
-    formatearFilaCosmica(sheet, fila);
-  }
-  SpreadsheetApp.getUi().alert(SYM.STAR + " Todas las filas han sido formateadas con el tema cosmico");
-}
 
 function ordenarManual() {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
