@@ -181,7 +181,7 @@ try {
     $Enviado = $false
     for ($i = 1; $i -le 3; $i++) {
         try {
-            Invoke-RestMethod -Uri $GoogleSheetURL -Method Post -Body $Body -ContentType "application/json" -TimeoutSec 60 | Out-Null
+            Invoke-RestMethod -Uri $GoogleSheetURL -Method Post -Body $Body -ContentType "application/json; charset=utf-8" -TimeoutSec 60 | Out-Null
             $Enviado = $true
             break
         } catch {

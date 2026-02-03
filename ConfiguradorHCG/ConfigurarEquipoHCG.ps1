@@ -344,7 +344,7 @@ function Send-DatosInicio {
 
     try {
         Write-Host "  Enviando datos del equipo..." -ForegroundColor Cyan
-        $Response = Invoke-RestMethod -Uri $GoogleSheetURL -Method Post -Body $Body -ContentType "application/json" -TimeoutSec 60
+        $Response = Invoke-RestMethod -Uri $GoogleSheetURL -Method Post -Body $Body -ContentType "application/json; charset=utf-8" -TimeoutSec 60
 
         if ($Response.status -eq "OK") {
             Write-Host ""
@@ -384,7 +384,7 @@ function Send-DatosFin {
     } | ConvertTo-Json
 
     try {
-        $Response = Invoke-RestMethod -Uri $GoogleSheetURL -Method Post -Body $Body -ContentType "application/json" -TimeoutSec 60
+        $Response = Invoke-RestMethod -Uri $GoogleSheetURL -Method Post -Body $Body -ContentType "application/json; charset=utf-8" -TimeoutSec 60
         if ($Response.status -eq "OK") {
             Write-Host "  +------------------------------------------+" -ForegroundColor Green
             Write-Host "  |     EQUIPO MARCADO COMO ACTIVO           |" -ForegroundColor Green
@@ -453,7 +453,7 @@ function Send-SoftwareInfo {
     } | ConvertTo-Json
 
     try {
-        $Response = Invoke-RestMethod -Uri $GoogleSheetURL -Method Post -Body $Body -ContentType "application/json" -TimeoutSec 60
+        $Response = Invoke-RestMethod -Uri $GoogleSheetURL -Method Post -Body $Body -ContentType "application/json; charset=utf-8" -TimeoutSec 60
         if ($Response.status -eq "OK") {
             Write-Host "  +------------------------------------------+" -ForegroundColor Green
             Write-Host "  |   INVENTARIO SOFTWARE REGISTRADO         |" -ForegroundColor Green
@@ -1663,7 +1663,7 @@ function Copy-AccesosDirectos {
         $Accesos = Get-ChildItem -Path $RutaAccesos -Include "*.lnk","*.url" -Recurse
         $Contador = 0
         foreach ($Acceso in $Accesos) {
-            Copy-Item -Path $Acceso.FullName -Destination $Desktop -Force
+            Copy-Item -Path $Acceso.FullName -Destination $Desktop -Force -ErrorAction SilentlyContinue
             $Contador++
         }
         Write-Log "$Contador accesos directos copiados" "OK"
@@ -1694,14 +1694,13 @@ function Remove-AdminUsuarioActual {
             Write-Log "Privilegios de administrador removidos de '$UsuarioActual'" "OK"
             Write-Host "  IMPORTANTE: El usuario '$UsuarioActual' ya no es administrador" -ForegroundColor Yellow
             Write-Host "  Solo el usuario '$UsuarioSoporte' tiene privilegios de administrador" -ForegroundColor Yellow
+            $Script:SoftwareInstalado += "Admin removido"
         } catch {
             Write-Log "No se pudieron remover privilegios de '$UsuarioActual': $($_.Exception.Message)" "WARN"
         }
     } else {
         Write-Log "Usuario '$UsuarioActual' no era administrador" "INFO"
     }
-
-    $Script:SoftwareInstalado += "Admin removido"
 }
 
 function Install-ReporteIP {
@@ -1751,7 +1750,7 @@ try {
     } | ConvertTo-Json
     for ($i = 1; $i -le 3; $i++) {
         try {
-            Invoke-RestMethod -Uri $GoogleSheetURL -Method Post -Body $Body -ContentType "application/json" -TimeoutSec 30 | Out-Null
+            Invoke-RestMethod -Uri $GoogleSheetURL -Method Post -Body $Body -ContentType "application/json; charset=utf-8" -TimeoutSec 30 | Out-Null
             break
         } catch { if ($i -lt 3) { Start-Sleep -Seconds (Get-Random -Minimum 10 -Maximum 30) } }
     }
@@ -1934,7 +1933,7 @@ try {
 
     for ($i = 1; $i -le 3; $i++) {
         try {
-            Invoke-RestMethod -Uri $GoogleSheetURL -Method Post -Body $Body -ContentType "application/json" -TimeoutSec 60 | Out-Null
+            Invoke-RestMethod -Uri $GoogleSheetURL -Method Post -Body $Body -ContentType "application/json; charset=utf-8" -TimeoutSec 60 | Out-Null
             break
         } catch { if ($i -lt 3) { Start-Sleep -Seconds (Get-Random -Minimum 15 -Maximum 45) } }
     }
@@ -2077,7 +2076,7 @@ try {
     } | ConvertTo-Json
     for ($i = 1; $i -le 3; $i++) {
         try {
-            Invoke-RestMethod -Uri $GoogleSheetURL -Method Post -Body $Body -ContentType "application/json" -TimeoutSec 30 | Out-Null
+            Invoke-RestMethod -Uri $GoogleSheetURL -Method Post -Body $Body -ContentType "application/json; charset=utf-8" -TimeoutSec 30 | Out-Null
             break
         } catch { if ($i -lt 3) { Start-Sleep -Seconds (Get-Random -Minimum 10 -Maximum 30) } }
     }
@@ -2186,14 +2185,18 @@ Install-ReporteDiagnostico; Play-StepSound
 
 # Renombrar equipo
 $NuevoNombre = "PC-$NumInventario"
-Rename-Computer -NewName $NuevoNombre -Force -ErrorAction SilentlyContinue
-Write-Log "Equipo renombrado a: $NuevoNombre" "OK"
+try {
+    Rename-Computer -NewName $NuevoNombre -Force -ErrorAction Stop
+    Write-Log "Equipo renombrado a: $NuevoNombre" "OK"
+} catch {
+    Write-Log "No se pudo renombrar equipo a '$NuevoNombre': $($_.Exception.Message)" "WARN"
+}
 
-# PASO 23: Actualizar Google Sheets
+# PASO 24: Actualizar Google Sheets
 Send-DatosFin -InvST $NumInventario
 Play-StepSound
 
-# PASO 24: Registrar inventario de software
+# PASO 25: Registrar inventario de software
 Send-SoftwareInfo -InvST $NumInventario
 Play-StepSound
 
