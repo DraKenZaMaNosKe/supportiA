@@ -989,7 +989,9 @@ function Set-TemaOscuro {
 
     # Aplicar tambien al perfil por defecto (para el usuario de inventario)
     try {
-        reg load "HKU\DefaultUser" "C:\Users\Default\NTUSER.DAT" 2>$null
+        if (-not (Test-Path "Registry::HKU\DefaultUser")) {
+            reg load "HKU\DefaultUser" "C:\Users\Default\NTUSER.DAT" 2>$null
+        }
         $DefPath = "Registry::HKU\DefaultUser\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize"
         if (-not (Test-Path $DefPath)) { New-Item -Path $DefPath -Force | Out-Null }
         Set-ItemProperty -Path $DefPath -Name "AppsUseLightTheme" -Value 0 -Type DWord
@@ -1065,7 +1067,7 @@ function Set-FondoPantalla {
 
             # Renderizar con Chrome headless a PNG
             $ScreenshotPath = "$TempDir\wallpaper_screenshot.png"
-            $FileUrl = "file:///$($HTMLLocal -replace '\\','/')"
+            $FileUrl = "file:///$([Uri]::EscapeUriString(($HTMLLocal -replace '\\','/')))"
 
             $ChromeArgs = @(
                 "--headless=new"
@@ -1080,6 +1082,10 @@ function Set-FondoPantalla {
             )
 
             $ChromeProcess = Start-Process -FilePath $ChromePath -ArgumentList ($ChromeArgs -join " ") -Wait -PassThru -NoNewWindow -ErrorAction Stop
+
+            if ($ChromeProcess.ExitCode -ne 0) {
+                Write-Log "Chrome devolvio codigo de salida $($ChromeProcess.ExitCode)" "WARN"
+            }
 
             # Esperar a que se genere el archivo
             Start-Sleep -Seconds 2
@@ -1151,16 +1157,26 @@ function Set-FondoPantalla {
                 $Gfx.DrawString($TextoDer, $FontInfo, $BrushGray, $RectDer, $SF)
 
                 $Bmp.Save($FondoLocal, [System.Drawing.Imaging.ImageFormat]::Jpeg)
-                $FontInfo.Dispose(); $BrushWhite.Dispose(); $BrushGray.Dispose()
-                $BrushFranja.Dispose(); $PenLinea.Dispose(); $SF.Dispose()
-                $Gfx.Dispose(); $Bmp.Dispose(); $ImgOrig.Dispose()
+
+                # Liberar recursos GDI+ de forma segura
+                foreach ($obj in @($FontInfo, $BrushWhite, $BrushGray, $BrushFranja, $PenLinea, $SF, $Gfx, $Bmp, $ImgOrig)) {
+                    try { if ($obj) { $obj.Dispose() } } catch {}
+                }
 
                 Write-Log "Wallpaper fallback con System.Drawing" "OK"
                 $WallpaperGenerado = $true
             } catch {
-                Copy-Item -Path $Fondo -Destination $FondoLocal -Force
-                Write-Log "Wallpaper copiado sin personalizar: $($_.Exception.Message)" "WARN"
-                $WallpaperGenerado = $true
+                # Liberar recursos GDI+ si quedaron abiertos
+                foreach ($obj in @($FontInfo, $BrushWhite, $BrushGray, $BrushFranja, $PenLinea, $SF, $Gfx, $Bmp, $ImgOrig)) {
+                    try { if ($obj) { $obj.Dispose() } } catch {}
+                }
+                try {
+                    Copy-Item -Path $Fondo -Destination $FondoLocal -Force -ErrorAction Stop
+                    Write-Log "Wallpaper copiado sin personalizar: $($_.Exception.Message)" "WARN"
+                    $WallpaperGenerado = $true
+                } catch {
+                    Write-Log "No se pudo copiar wallpaper: $($_.Exception.Message)" "ERROR"
+                }
             }
         }
     }
@@ -1175,7 +1191,9 @@ function Set-FondoPantalla {
 
         # Aplicar tambien al perfil por defecto (para el usuario de inventario)
         try {
-            reg load "HKU\DefaultUser" "C:\Users\Default\NTUSER.DAT" 2>$null
+            if (-not (Test-Path "Registry::HKU\DefaultUser")) {
+                reg load "HKU\DefaultUser" "C:\Users\Default\NTUSER.DAT" 2>$null
+            }
             $DefDesktop = "Registry::HKU\DefaultUser\Control Panel\Desktop"
             if (-not (Test-Path $DefDesktop)) { New-Item -Path $DefDesktop -Force | Out-Null }
             Set-ItemProperty -Path $DefDesktop -Name "Wallpaper" -Value $FondoLocal
@@ -1235,6 +1253,9 @@ function Install-WinRAR {
     } else {
         Write-Log "WinRAR ya esta instalado" "INFO"
     }
+
+    # Verificar que WinRAR esta presente antes de registrar
+    if (-not (Test-Path "C:\Program Files\WinRAR\WinRAR.exe")) { return }
 
     # PASO 2: Aplicar licencia
     $Licencia = "$RutaWinRAR\WinRAR License.exe"
@@ -1454,6 +1475,11 @@ function Install-Office {
         Write-Log "Serial de Office: $SerialPreview..."
     }
 
+    if (-not $SerialOffice) {
+        Write-Log "No se encontro serial de Office. Instalacion omitida" "ERROR"
+        return
+    }
+
     if (Test-Path $SetupPath) {
         # Crear archivo de configuracion para instalar solo Word, Excel, PowerPoint
         $ConfigXML = @"
@@ -1472,7 +1498,7 @@ function Install-Office {
 </Configuration>
 "@
         $ConfigPath = "$env:TEMP\Office2007Config.xml"
-        $ConfigXML | Out-File -FilePath $ConfigPath -Encoding UTF8
+        [System.IO.File]::WriteAllText($ConfigPath, $ConfigXML, (New-Object System.Text.UTF8Encoding $false))
 
         Write-Log "Instalando Office 2007 (Word, Excel, PowerPoint)..."
         Start-Process -FilePath $SetupPath -ArgumentList "/config `"$ConfigPath`"" -Wait -NoNewWindow
@@ -1512,6 +1538,9 @@ function Add-DedalusSyncStartup {
     $SyncBat = "$RutaDedalus\sync_xhis6_startup.bat"
 
     if (Test-Path $SyncBat) {
+        # Asegurar que la carpeta Dedalus existe
+        if (-not (Test-Path "C:\Dedalus")) { New-Item -ItemType Directory -Path "C:\Dedalus" -Force | Out-Null }
+
         # Copiar el archivo al equipo local
         $LocalSync = "C:\Dedalus\sync_xhis6_startup.bat"
         Copy-Item -Path $SyncBat -Destination $LocalSync -Force
