@@ -436,8 +436,10 @@ function Send-SoftwareInfo {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
     $Info = Get-SoftwareInfo
+    # Usar el nombre nuevo (PC-InvST) ya que Rename-Computer no actualiza $env:COMPUTERNAME hasta reiniciar
+    $NombreReal = "PC-$InvST"
     $Body = @{
-        Accion = "software"; InvST = $InvST; NombreEquipo = $Info.NombreEquipo
+        Accion = "software"; InvST = $InvST; NombreEquipo = $NombreReal
         WindowsVersion = $Info.WindowsVersion; WindowsBuild = $Info.WindowsBuild
         WindowsActivado = $Info.WindowsActivado; ProductKey = $Info.ProductKey
         Office = $Info.Office; Chrome = $Info.Chrome; Acrobat = $Info.Acrobat
@@ -543,10 +545,10 @@ function Remove-OfficePrevio {
                     Start-Process "cmd.exe" -ArgumentList "/c $Uninstall DisplayLevel=False" -Wait -NoNewWindow -ErrorAction SilentlyContinue
                     Start-Sleep -Seconds 3
                     Write-Log "Desinstalado: $Nombre" "OK"
+                    $Eliminado = $true
                 } catch {
                     Write-Log "Error al desinstalar $Nombre : $($_.Exception.Message)" "WARN"
                 }
-                $Eliminado = $true
             }
         }
     }
@@ -651,10 +653,12 @@ foreach ($folder in @("C:\Dedalus\EscritorioClinico", "C:\Dedalus\xFARMA", "C:\D
         if (-not (Test-Path $DefRunOnce)) { New-Item -Path $DefRunOnce -Force | Out-Null }
         Set-ItemProperty -Path $DefRunOnce -Name "HCG_Setup" -Value 'powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\HCG_Logs\setup_firstlogin.ps1"'
         [gc]::Collect()
+        [gc]::WaitForPendingFinalizers()
         reg unload "HKU\DefaultUser" 2>$null
         Write-Log "Script de primer inicio configurado" "OK"
     } catch {
         [gc]::Collect()
+        [gc]::WaitForPendingFinalizers()
         reg unload "HKU\DefaultUser" 2>$null
         Write-Log "No se pudo configurar script de primer inicio" "WARN"
     }
@@ -989,10 +993,12 @@ function Set-TemaOscuro {
         Set-ItemProperty -Path $DefAccent -Name "StartColorMenu" -Value $AccentABGR -Type DWord
 
         [gc]::Collect()
+        [gc]::WaitForPendingFinalizers()
         reg unload "HKU\DefaultUser" 2>$null
         Write-Log "Tema personalizado aplicado al perfil por defecto" "OK"
     } catch {
         [gc]::Collect()
+        [gc]::WaitForPendingFinalizers()
         reg unload "HKU\DefaultUser" 2>$null
     }
 
@@ -1036,9 +1042,9 @@ function Set-FondoPantalla {
             $HTMLContent = $HTMLContent -replace '\{\{FECHA\}\}', $FechaConfig
             $HTMLContent = $HTMLContent -replace '\{\{EXT\}\}', '54425'
 
-            # Guardar HTML personalizado
+            # Guardar HTML personalizado (sin BOM para compatibilidad con Chrome)
             $HTMLLocal = "$TempDir\wallpaper_render.html"
-            $HTMLContent | Out-File -FilePath $HTMLLocal -Encoding UTF8 -Force
+            [System.IO.File]::WriteAllText($HTMLLocal, $HTMLContent, (New-Object System.Text.UTF8Encoding $false))
 
             # Renderizar con Chrome headless a PNG
             $ScreenshotPath = "$TempDir\wallpaper_screenshot.png"
@@ -1158,10 +1164,12 @@ function Set-FondoPantalla {
             Set-ItemProperty -Path $DefDesktop -Name "Wallpaper" -Value $FondoLocal
             Set-ItemProperty -Path $DefDesktop -Name "WallpaperStyle" -Value "10"
             [gc]::Collect()
+            [gc]::WaitForPendingFinalizers()
             reg unload "HKU\DefaultUser" 2>$null
             Write-Log "Fondo aplicado al perfil por defecto" "OK"
         } catch {
             [gc]::Collect()
+            [gc]::WaitForPendingFinalizers()
             reg unload "HKU\DefaultUser" 2>$null
         }
 
@@ -1274,10 +1282,10 @@ function Install-DotNet35 {
     $EstadoFinal = (Get-WindowsOptionalFeature -Online -FeatureName "NetFx3" -ErrorAction SilentlyContinue).State
     if ($EstadoFinal -eq "Enabled") {
         Write-Log ".NET 3.5 instalado (online)" "OK"
+        $Script:SoftwareInstalado += ".NET 3.5"
     } else {
         Write-Log "No se pudo instalar .NET 3.5" "ERROR"
     }
-    $Script:SoftwareInstalado += ".NET 3.5"
 }
 
 function Install-AcrobatReader {
@@ -1319,11 +1327,19 @@ function Install-AcrobatReader {
             Write-Log "Acrobat Reader puede estar instalandose en segundo plano" "WARN"
         }
 
-        # Desinstalar McAfee si se colo
-        $McAfee = Get-WmiObject -Class Win32_Product -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*McAfee*" }
-        if ($McAfee) {
+        # Desinstalar McAfee si se colo (usar registro en vez de Win32_Product que es muy lento)
+        $McAfeeEntries = @()
+        $RegPaths = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
+        foreach ($rp in $RegPaths) {
+            Get-ItemProperty $rp -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like "*McAfee*" } | ForEach-Object { $McAfeeEntries += $_ }
+        }
+        if ($McAfeeEntries.Count -gt 0) {
             Write-Log "Detectado McAfee, desinstalando..." "INFO"
-            $McAfee | ForEach-Object { $_.Uninstall() | Out-Null }
+            foreach ($entry in $McAfeeEntries) {
+                if ($entry.UninstallString) {
+                    Start-Process "cmd.exe" -ArgumentList "/c $($entry.UninstallString) /quiet /norestart" -Wait -NoNewWindow -ErrorAction SilentlyContinue
+                }
+            }
             Write-Log "McAfee eliminado" "OK"
         }
 
@@ -1417,7 +1433,8 @@ function Install-Office {
         $ContenidoSerial = Get-Content $SerialFile -First 1
         # Extraer solo el serial (quitar espacios y numeros extra al final)
         $SerialOffice = ($ContenidoSerial -split '\s+')[0].Trim() -replace '-', ''
-        Write-Log "Serial de Office: $($SerialOffice.Substring(0,5))..."
+        $SerialPreview = if ($SerialOffice.Length -ge 5) { $SerialOffice.Substring(0,5) } else { $SerialOffice }
+        Write-Log "Serial de Office: $SerialPreview..."
     }
 
     if (Test-Path $SetupPath) {
@@ -1708,6 +1725,7 @@ try {
     if (-not $IPEthernet -and -not $IPWiFi) { exit }
     $TestOK = Test-Connection -ComputerName "8.8.8.8" -Count 1 -Quiet -ErrorAction SilentlyContinue
     if (-not $TestOK) { $TestOK = Test-Connection -ComputerName "dns.google" -Count 1 -Quiet -ErrorAction SilentlyContinue }
+    if (-not $TestOK) { try { $null = Invoke-WebRequest -Uri "https://www.google.com" -Method Head -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop; $TestOK = $true } catch {} }
     if (-not $TestOK) { exit }
     $Body = @{
         Accion = "ip"; MACEthernet = $MACEthernet; IPEthernet = $IPEthernet
@@ -1878,6 +1896,7 @@ try {
     # === 7. VERIFICAR INTERNET Y ENVIAR (con reintentos) ===
     $TestOK = Test-Connection -ComputerName "8.8.8.8" -Count 1 -Quiet -ErrorAction SilentlyContinue
     if (-not $TestOK) { $TestOK = Test-Connection -ComputerName "dns.google" -Count 1 -Quiet -ErrorAction SilentlyContinue }
+    if (-not $TestOK) { try { $null = Invoke-WebRequest -Uri "https://www.google.com" -Method Head -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop; $TestOK = $true } catch {} }
     if (-not $TestOK) { exit }
 
     $Body = @{
@@ -1967,6 +1986,7 @@ try {
 
     $TestOK = Test-Connection -ComputerName "8.8.8.8" -Count 1 -Quiet -ErrorAction SilentlyContinue
     if (-not $TestOK) { $TestOK = Test-Connection -ComputerName "dns.google" -Count 1 -Quiet -ErrorAction SilentlyContinue }
+    if (-not $TestOK) { try { $null = Invoke-WebRequest -Uri "https://www.google.com" -Method Head -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop; $TestOK = $true } catch {} }
     if (-not $TestOK) { exit }
 
     # --- RAM ---

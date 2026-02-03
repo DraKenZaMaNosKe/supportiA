@@ -61,10 +61,13 @@ try {
     # Si no hay ninguna IP activa, no tiene caso enviar
     if (-not $IPEthernet -and -not $IPWiFi) { exit }
 
-    # --- Verificar conectividad a internet ---
+    # --- Verificar conectividad a internet (ICMP + HTTP fallback) ---
     $TestOK = Test-Connection -ComputerName "8.8.8.8" -Count 1 -Quiet -ErrorAction SilentlyContinue
     if (-not $TestOK) {
         $TestOK = Test-Connection -ComputerName "dns.google" -Count 1 -Quiet -ErrorAction SilentlyContinue
+    }
+    if (-not $TestOK) {
+        try { $null = Invoke-WebRequest -Uri "https://www.google.com" -Method Head -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop; $TestOK = $true } catch {}
     }
     if (-not $TestOK) { exit }
 
@@ -79,11 +82,9 @@ try {
         FechaReporte = (Get-Date -Format "dd/MM/yyyy HH:mm")
     } | ConvertTo-Json
 
-    $Enviado = $false
     for ($i = 1; $i -le 3; $i++) {
         try {
             Invoke-RestMethod -Uri $GoogleSheetURL -Method Post -Body $Body -ContentType "application/json" -TimeoutSec 30 | Out-Null
-            $Enviado = $true
             break
         } catch {
             if ($i -lt 3) { Start-Sleep -Seconds (Get-Random -Minimum 10 -Maximum 30) }

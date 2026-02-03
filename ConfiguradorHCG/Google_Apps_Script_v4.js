@@ -607,13 +607,11 @@ function formatearFilaSoftwareCosmica(sheet, fila) {
   for (var c = 0; c < colsSiNo.length; c++) {
     var col = colsSiNo[c];
     var val = String(sheet.getRange(fila, col).getValue()).trim();
-    if (val == "Si" || val == "S\u00ed" || val == "Yes") {
+    // Usar indexOf para detectar Si/No incluso si ya tiene simbolo decorativo
+    if (val.indexOf("Si") >= 0 || val.indexOf("S\u00ed") >= 0 || val == "Yes") {
       sheet.getRange(fila, col).setBackground(COSMOS.SI_BG).setFontColor(COSMOS.SI_TEXT).setFontWeight("bold");
-      // Agregar estrella al Si
-      if (val == "Si" || val == "S\u00ed") {
-        sheet.getRange(fila, col).setValue(SYM.STAR + " Si");
-      }
-    } else if (val == "No" || val == "No instalado") {
+      sheet.getRange(fila, col).setValue(SYM.STAR + " Si");
+    } else if (val.indexOf("No") >= 0) {
       sheet.getRange(fila, col).setBackground(COSMOS.NO_BG).setFontColor(COSMOS.NO_TEXT);
       sheet.getRange(fila, col).setValue(SYM.CROSS + " No");
     }
@@ -631,7 +629,7 @@ function doPost(e) {
       return jsonResponse({ status: "BUSY", mensaje: "Servidor ocupado, reintentar" });
     }
 
-    var sheetRegistro = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    var sheetRegistro = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
     var data = JSON.parse(e.postData.contents);
     var accion = data.Accion || "crear";
 
@@ -654,7 +652,16 @@ function doPost(e) {
     } else if (accion == "diagnostico") {
       resultado = reporteDiagnostico(data);
     } else if (accion == "tema") {
-      aplicarTemaSaintSeiya();
+      // Aplicar tema sin UI (getUi() falla en contexto web app)
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var registro = ss.getSheets()[0];
+      if (registro) aplicarTemaRegistro(registro);
+      var reporte = ss.getSheetByName("Reporte_Sistema");
+      if (reporte) aplicarTemaReporteSistema(reporte);
+      var software = ss.getSheetByName(HOJA_SOFTWARE);
+      if (software) aplicarTemaInventarioSoftware(software);
+      var diagnostico = ss.getSheetByName("Diagnostico_Salud");
+      if (diagnostico) aplicarTemaDiagnosticoSalud(diagnostico);
       resultado = jsonResponse({ status: "OK", mensaje: "Tema cosmico aplicado" });
     } else {
       resultado = jsonResponse({ status: "ERROR", mensaje: "Accion no reconocida" });
@@ -1378,8 +1385,8 @@ function obtenerUltimaFilaDatos(sheet) {
   var data = sheet.getDataRange().getValues();
   var ultimaFila = 4;
   for (var i = 4; i < data.length; i++) {
-    var marca = data[i][3]; // Columna D: Marca
-    if (marca && String(marca).trim() != "") {
+    var invST = data[i][2]; // Columna C: Inv. ST
+    if (invST && String(invST).trim() != "") {
       ultimaFila = i + 1;
     }
   }
