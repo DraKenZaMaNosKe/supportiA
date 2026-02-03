@@ -1,0 +1,7 @@
+# Claude Code
+.claude/
+
+# Windows artifacts
+nul
+Thumbs.db
+desktop.ini

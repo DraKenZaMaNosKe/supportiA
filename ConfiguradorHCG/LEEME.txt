@@ -1,0 +1,98 @@
+================================================================================
+     CONFIGURADOR DE EQUIPOS - HOSPITAL CIVIL FAA
+     Coordinacion General de Informatica - Ext. 54425
+================================================================================
+
+CONTENIDO DE ESTA CARPETA:
+--------------------------
+  Config.ps1              - Configuracion (rutas, seriales, etc.)
+  GuardarCredenciales.ps1 - Guarda credenciales de red (ejecutar 1 vez)
+  ConfigurarEquipo.ps1    - Script principal de configuracion
+  ProcesarReportes.ps1    - Procesa reportes y actualiza Excel
+
+================================================================================
+                          INSTRUCCIONES DE USO
+================================================================================
+
+PASO 1: PREPARACION (Solo una vez por equipo donde configuras)
+--------------------------------------------------------------
+  1. Abre PowerShell como Administrador
+  2. Ejecuta: .\GuardarCredenciales.ps1
+  3. Ingresa usuario (2010201) y contrasena
+  4. Las credenciales se guardan en Windows Credential Manager
+
+PASO 2: CONFIGURAR UN EQUIPO NUEVO
+----------------------------------
+  1. Enciende el equipo nuevo y conectalo a la red
+  2. Copia esta carpeta a una USB
+  3. En el equipo nuevo, abre PowerShell como Administrador
+  4. Navega a la carpeta: cd D:\ConfiguradorHCG (o donde este la USB)
+  5. Ejecuta: .\ConfigurarEquipo.ps1
+  6. Ingresa el numero de inventario ST (5 digitos de la etiqueta azul)
+  7. Espera a que termine (instala todo automaticamente)
+  8. Reinicia cuando te lo pida
+
+PASO 3: ACTUALIZAR EXCEL (Desde tu computadora)
+-----------------------------------------------
+  1. Copia la carpeta C:\HCG_Reportes del equipo configurado a tu USB
+  2. Pega los archivos .json en C:\HCG_Reportes de tu computadora
+  3. Ejecuta: .\ProcesarReportes.ps1
+  4. El Excel se actualiza automaticamente y se sincroniza con Drive
+
+================================================================================
+                         QUE HACE EL SCRIPT
+================================================================================
+
+El script ConfigurarEquipo.ps1 realiza las siguientes tareas:
+
+  [ ] 1.  Extrae datos del hardware (Serie, MAC, Product Key)
+  [ ] 2.  Renombra el equipo (PC-XXXXX)
+  [ ] 3.  Crea usuario "Soporte" para acceso remoto
+  [ ] 4.  Configura red como privada
+  [ ] 5.  Configura hora automatica (NTP)
+  [ ] 6.  Configura tema oscuro
+  [ ] 7.  Conecta a servidores de red
+  [ ] 8.  Desinstala Office 365
+  [ ] 9.  Instala .NET Framework 3.5
+  [ ] 10. Instala Office 2007 (Word, Excel, PowerPoint)
+  [ ] 11. Instala ESET Antivirus
+  [ ] 12. Instala Google Chrome
+  [ ] 13. Instala Acrobat Reader DC
+  [ ] 14. Copia accesos directos al escritorio
+  [ ] 15. Genera reporte JSON para el registro
+
+================================================================================
+                         SOLUCION DE PROBLEMAS
+================================================================================
+
+ERROR: "No se puede ejecutar scripts"
+  Solucion: Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+ERROR: "No se pudo conectar al servidor"
+  Solucion: Ejecuta GuardarCredenciales.ps1 de nuevo
+
+ERROR: "Acceso denegado"
+  Solucion: Ejecuta PowerShell como Administrador
+
+ERROR: "No se encontro el instalador"
+  Solucion: Verifica las rutas en Config.ps1
+
+================================================================================
+                              NOTAS
+================================================================================
+
+- Los logs se guardan en: C:\HCG_Reportes\Logs\
+- Los reportes se guardan en: C:\HCG_Reportes\
+- Despues de procesar, los reportes se mueven a: C:\HCG_Reportes\Procesados\
+
+Para modificar configuraciones (rutas, serial de Office, etc.):
+  Edita el archivo Config.ps1
+
+================================================================================
+                           CONTACTO
+================================================================================
+
+Soporte Tecnico: Extension 54425
+Email: ejcontreras@hcg.gob.mx
+
+================================================================================

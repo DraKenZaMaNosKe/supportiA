@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>HCG Wallpaper</title>
+<style>
+  /* =============================================================
+     HCG WALLPAPER TEMPLATE - Hospital Civil de Guadalajara
+     Variables PowerShell: {{HOSTNAME}}, {{INVENTARIO}}, {{FECHA}}, {{EXT}}
+     ============================================================= */
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    font-family: 'Segoe UI', 'Arial', sans-serif;
+    position: relative;
+  }
+
+  /* --- FONDO: imagen del hospital --- */
+  .bg-image {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    /* CAMBIAR RUTA SI ES NECESARIO */
+    background: url('wallpaper_hcg.jpg') center center / cover no-repeat;
+    z-index: 0;
+  }
+
+  /* --- OVERLAY oscuro semi-transparente sobre mitad derecha --- */
+  .overlay-right {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 55%;
+    height: 100%;
+    background: linear-gradient(
+      135deg,
+      rgba(10, 10, 26, 0.0) 0%,
+      rgba(10, 10, 26, 0.75) 15%,
+      rgba(10, 10, 26, 0.88) 100%
+    );
+    z-index: 1;
+  }
+
+  /* --- Franja superior con degradado dorado sutil --- */
+  .top-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg, transparent 30%, #DAA520 50%, transparent 70%);
+    z-index: 10;
+  }
+
+  /* --- HEADER: Logo y nombre del hospital --- */
+  .header {
+    position: absolute;
+    top: 40px;
+    right: 60px;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .header-divider {
+    width: 2px;
+    height: 50px;
+    background: linear-gradient(180deg, transparent, #DAA520, transparent);
+  }
+
+  .header-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .header-title {
+    font-size: 28px;
+    font-weight: 300;
+    color: #FFFFFF;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  }
+
+  .header-subtitle {
+    font-size: 11px;
+    color: #DAA520;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+  }
+
+  /* --- ESQUINA: nombre del equipo discreto --- */
+  .equipo-badge {
+    position: absolute;
+    top: 30px;
+    left: 30px;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 8px 18px;
+    border-radius: 6px;
+    border: 1px solid rgba(218, 165, 32, 0.3);
+  }
+
+  .equipo-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #66FF66;
+    box-shadow: 0 0 6px rgba(102, 255, 102, 0.6);
+  }
+
+  .equipo-name {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 400;
+    letter-spacing: 2px;
+    font-family: 'Consolas', 'Courier New', monospace;
+  }
+
+  /* --- CAJA DE INFO INSTITUCIONAL --- */
+  .info-box {
+    position: absolute;
+    bottom: 60px;
+    right: 60px;
+    z-index: 5;
+    width: 380px;
+    background: rgba(10, 10, 26, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(218, 165, 32, 0.4);
+    border-radius: 8px;
+    padding: 24px 28px;
+  }
+
+  .info-label {
+    font-size: 9px;
+    color: #DAA520;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    text-align: center;
+  }
+
+  .info-divider {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(218, 165, 32, 0.5), transparent);
+    margin: 10px 0;
+  }
+
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+  }
+
+  .info-key {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .info-value {
+    font-size: 13px;
+    color: #FFFFFF;
+    font-family: 'Consolas', 'Courier New', monospace;
+    letter-spacing: 1px;
+  }
+
+  .info-value.gold {
+    color: #DAA520;
+    font-weight: 600;
+  }
+
+  .info-value.cyan {
+    color: #00CED1;
+  }
+
+  /* --- SOPORTE: extension destacada --- */
+  .soporte-box {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(calc(-50% + 200px));
+    z-index: 5;
+    display: none; /* desactivado por ahora, info va en info-box */
+  }
+
+  /* --- BARRA INFERIOR --- */
+  .bottom-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 44px;
+    background: rgba(10, 10, 26, 0.85);
+    border-top: 1px solid rgba(218, 165, 32, 0.25);
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 30px;
+  }
+
+  .bottom-left {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 1px;
+  }
+
+  .bottom-center {
+    font-size: 10px;
+    color: rgba(218, 165, 32, 0.6);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+
+  .bottom-right {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 1px;
+    font-family: 'Consolas', monospace;
+  }
+
+  /* --- ELEMENTOS DECORATIVOS --- */
+  .deco-cross {
+    position: absolute;
+    color: rgba(218, 165, 32, 0.15);
+    font-size: 22px;
+    font-weight: 200;
+    z-index: 3;
+    user-select: none;
+  }
+
+  .deco-dots {
+    position: absolute;
+    z-index: 3;
+    display: grid;
+    grid-template-columns: repeat(5, 8px);
+    gap: 6px;
+  }
+
+  .deco-dots span {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(218, 165, 32, 0.2);
+  }
+
+  .deco-circle {
+    position: absolute;
+    border: 1px solid rgba(218, 165, 32, 0.1);
+    border-radius: 50%;
+    z-index: 3;
+  }
+
+  .deco-line-v {
+    position: absolute;
+    width: 1px;
+    background: linear-gradient(180deg, transparent, rgba(218, 165, 32, 0.15), transparent);
+    z-index: 3;
+  }
+
+  /* --- MENSAJE INSTITUCIONAL --- */
+  .msg-institucional {
+    position: absolute;
+    bottom: 56px;
+    left: 30px;
+    z-index: 5;
+    max-width: 450px;
+  }
+
+  .msg-text {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.3);
+    font-style: italic;
+    line-height: 1.6;
+    letter-spacing: 0.5px;
+  }
+
+</style>
+</head>
+<body>
+
+  <!-- FONDO: imagen del hospital -->
+  <div class="bg-image"></div>
+
+  <!-- OVERLAY derecho -->
+  <div class="overlay-right"></div>
+
+  <!-- BARRA SUPERIOR decorativa -->
+  <div class="top-bar"></div>
+
+  <!-- BADGE: Nombre del equipo -->
+  <div class="equipo-badge">
+    <div class="equipo-dot"></div>
+    <span class="equipo-name">{{HOSTNAME}}</span>
+  </div>
+
+  <!-- HEADER: Hospital -->
+  <div class="header">
+    <div class="header-divider"></div>
+    <div class="header-text">
+      <div class="header-title">Hospital Civil de Guadalajara</div>
+      <div class="header-subtitle">Coordinacion General de Informatica</div>
+    </div>
+  </div>
+
+  <!-- CAJA DE INFORMACION -->
+  <div class="info-box">
+    <div class="info-label">Equipo de Computo Institucional</div>
+    <div class="info-divider"></div>
+
+    <div class="info-row">
+      <span class="info-key">Equipo</span>
+      <span class="info-value">{{HOSTNAME}}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-key">Inventario ST</span>
+      <span class="info-value gold">{{INVENTARIO}}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-key">Configurado</span>
+      <span class="info-value">{{FECHA}}</span>
+    </div>
+
+    <div class="info-divider"></div>
+
+    <div class="info-row">
+      <span class="info-key">Mesa de Ayuda</span>
+      <span class="info-value cyan">Ext. 54425</span>
+    </div>
+
+    <div class="info-divider"></div>
+
+    <div style="text-align:center; padding-top: 6px;">
+      <span style="font-size: 9px; color: rgba(255,255,255,0.35); letter-spacing: 2px; text-transform: uppercase;">
+        Este equipo utiliza solo software institucional
+      </span>
+    </div>
+  </div>
+
+  <!-- BARRA INFERIOR -->
+  <div class="bottom-bar">
+    <span class="bottom-left">{{HOSTNAME}} &nbsp;|&nbsp; Inv. ST: {{INVENTARIO}}</span>
+    <span class="bottom-center">Soporte Tecnico &mdash; Ext. 54425</span>
+    <span class="bottom-right">{{FECHA}}</span>
+  </div>
+
+  <!-- MENSAJE INSTITUCIONAL -->
+  <div class="msg-institucional">
+    <p class="msg-text">
+      "El uso adecuado de este equipo garantiza su funcionalidad,
+      utilizalo responsablemente, es un esfuerzo de todos."
+    </p>
+  </div>
+
+  <!-- ELEMENTOS DECORATIVOS -->
+  <div class="deco-cross" style="top: 180px; right: 320px;">+</div>
+  <div class="deco-cross" style="top: 420px; right: 150px;">+</div>
+  <div class="deco-cross" style="bottom: 180px; right: 500px;">+</div>
+
+  <div class="deco-dots" style="bottom: 120px; right: 50px;">
+    <span></span><span></span><span></span><span></span><span></span>
+    <span></span><span></span><span></span><span></span><span></span>
+    <span></span><span></span><span></span><span></span><span></span>
+    <span></span><span></span><span></span><span></span><span></span>
+  </div>
+
+  <div class="deco-circle" style="top: 300px; right: 80px; width: 80px; height: 80px;"></div>
+  <div class="deco-circle" style="top: 500px; right: 400px; width: 40px; height: 40px;"></div>
+
+  <div class="deco-line-v" style="right: 480px; top: 100px; height: 200px;"></div>
+
+</body>
+</html>
