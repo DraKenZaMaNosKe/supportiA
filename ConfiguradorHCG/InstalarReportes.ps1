@@ -78,9 +78,7 @@ try {
 
 $IPScript | Out-File -FilePath "C:\HCG_Logs\report_ip.ps1" -Encoding UTF8 -Force
 
-# Crear tarea programada de IP
-schtasks /delete /tn "HCG_ReporteIP" /f 2>$null | Out-Null
-
+# Crear tarea programada de IP (Register -Force reemplaza si ya existe)
 try {
     $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -NonInteractive -File `"C:\HCG_Logs\report_ip.ps1`""
 
@@ -139,8 +137,9 @@ try {
             Get-ChildItem -Path $folder -Recurse -Force -ErrorAction SilentlyContinue |
                 Where-Object { -not $_.PSIsContainer -and $_.LastWriteTime -lt (Get-Date).AddDays(-1) } |
                 ForEach-Object {
-                    $BytesLimpiados += $_.Length
-                    Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+                    $sz = $_.Length; $fp = $_.FullName
+                    Remove-Item $fp -Force -ErrorAction SilentlyContinue
+                    if (-not (Test-Path $fp)) { $BytesLimpiados += $sz }
                 }
         }
     }
@@ -148,8 +147,9 @@ try {
         Get-ChildItem "C:\Windows\Prefetch" -Force -ErrorAction SilentlyContinue |
             Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-7) } |
             ForEach-Object {
-                $BytesLimpiados += $_.Length
-                Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+                $sz = $_.Length; $fp = $_.FullName
+                Remove-Item $fp -Force -ErrorAction SilentlyContinue
+                if (-not (Test-Path $fp)) { $BytesLimpiados += $sz }
             }
     }
     $WUFolder = "C:\Windows\SoftwareDistribution\Download"
@@ -157,8 +157,9 @@ try {
         Get-ChildItem $WUFolder -Recurse -Force -ErrorAction SilentlyContinue |
             Where-Object { -not $_.PSIsContainer -and $_.LastWriteTime -lt (Get-Date).AddDays(-30) } |
             ForEach-Object {
-                $BytesLimpiados += $_.Length
-                Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+                $sz = $_.Length; $fp = $_.FullName
+                Remove-Item $fp -Force -ErrorAction SilentlyContinue
+                if (-not (Test-Path $fp)) { $BytesLimpiados += $sz }
             }
     }
     $MBLimpiados = [math]::Round($BytesLimpiados / 1MB, 1)
@@ -181,8 +182,11 @@ try {
     $UserList = @()
     $AdminMembers = @()
     try {
-        $AdminMembers = Get-LocalGroupMember -Group "Administradores" -ErrorAction SilentlyContinue |
-            ForEach-Object { ($_.Name -split '\\')[-1] }
+        $AdminGroupName = (Get-LocalGroup -ErrorAction SilentlyContinue | Where-Object { $_.SID.Value -eq 'S-1-5-32-544' }).Name
+        if ($AdminGroupName) {
+            $AdminMembers = Get-LocalGroupMember -Group $AdminGroupName -ErrorAction SilentlyContinue |
+                ForEach-Object { ($_.Name -split '\\')[-1] }
+        }
     } catch {}
     Get-LocalUser -ErrorAction SilentlyContinue | Where-Object { $_.Enabled } | ForEach-Object {
         $UName = $_.Name; $IsAdmin = $AdminMembers -contains $UName
@@ -212,7 +216,7 @@ try {
     $Shortcuts = $Shortcuts | Select-Object -Unique | Sort-Object
 
     # 6. DISCO
-    $Disco = Get-WmiObject Win32_LogicalDisk -Filter "DeviceID='C:'" -ErrorAction SilentlyContinue
+    $Disco = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'" -ErrorAction SilentlyContinue
     $EspacioLibreGB = if ($Disco) { [math]::Round($Disco.FreeSpace / 1GB, 1) } else { 0 }
     $EspacioTotalGB = if ($Disco) { [math]::Round($Disco.Size / 1GB, 0) } else { 0 }
 
@@ -246,9 +250,7 @@ try {
 
 $SysScript | Out-File -FilePath "C:\HCG_Logs\report_system.ps1" -Encoding UTF8 -Force
 
-# Crear tarea programada de Sistema
-schtasks /delete /tn "HCG_ReporteSistema" /f 2>$null | Out-Null
-
+# Crear tarea programada de Sistema (Register -Force reemplaza si ya existe)
 try {
     $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -NonInteractive -File `"C:\HCG_Logs\report_system.ps1`""
 
@@ -304,10 +306,10 @@ try {
 
     # --- RAM ---
     $OS = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
-    $RAMTotalGB = [math]::Round($OS.TotalVisibleMemorySize / 1MB, 1)
-    $RAMLibreGB = [math]::Round($OS.FreePhysicalMemory / 1MB, 1)
+    $RAMTotalGB = if ($OS.TotalVisibleMemorySize) { [math]::Round($OS.TotalVisibleMemorySize / 1MB, 1) } else { 0 }
+    $RAMLibreGB = if ($OS.FreePhysicalMemory) { [math]::Round($OS.FreePhysicalMemory / 1MB, 1) } else { 0 }
     $RAMUsadaGB = [math]::Round($RAMTotalGB - $RAMLibreGB, 1)
-    $RAMPct = [math]::Round(($RAMUsadaGB / $RAMTotalGB) * 100, 0)
+    $RAMPct = if ($RAMTotalGB -gt 0) { [math]::Round(($RAMUsadaGB / $RAMTotalGB) * 100, 0) } else { 0 }
 
     # --- Top 5 procesos ---
     $Top5 = Get-Process -ErrorAction SilentlyContinue |
@@ -382,9 +384,7 @@ try {
 
 $DiagScript | Out-File -FilePath "C:\HCG_Logs\report_diagnostico.ps1" -Encoding UTF8 -Force
 
-# Crear tarea programada de Diagnostico
-schtasks /delete /tn "HCG_ReporteDiagnostico" /f 2>$null | Out-Null
-
+# Crear tarea programada de Diagnostico (Register -Force reemplaza si ya existe)
 try {
     $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -NonInteractive -File `"C:\HCG_Logs\report_diagnostico.ps1`""
 

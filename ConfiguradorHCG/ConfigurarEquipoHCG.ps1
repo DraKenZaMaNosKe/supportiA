@@ -1748,9 +1748,6 @@ try {
     # Crear tarea programada: cada 3 horas + al iniciar sesion
     $TaskName = "HCG_ReporteIP"
 
-    # Eliminar tarea si ya existe
-    schtasks /delete /tn $TaskName /f 2>$null | Out-Null
-
     try {
         $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -NonInteractive -File `"$ScriptPath`""
 
@@ -1816,8 +1813,9 @@ try {
             Get-ChildItem -Path $folder -Recurse -Force -ErrorAction SilentlyContinue |
                 Where-Object { -not $_.PSIsContainer -and $_.LastWriteTime -lt (Get-Date).AddDays(-1) } |
                 ForEach-Object {
-                    $BytesLimpiados += $_.Length
-                    Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+                    $sz = $_.Length; $fp = $_.FullName
+                    Remove-Item $fp -Force -ErrorAction SilentlyContinue
+                    if (-not (Test-Path $fp)) { $BytesLimpiados += $sz }
                 }
         }
     }
@@ -1825,8 +1823,9 @@ try {
         Get-ChildItem "C:\Windows\Prefetch" -Force -ErrorAction SilentlyContinue |
             Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-7) } |
             ForEach-Object {
-                $BytesLimpiados += $_.Length
-                Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+                $sz = $_.Length; $fp = $_.FullName
+                Remove-Item $fp -Force -ErrorAction SilentlyContinue
+                if (-not (Test-Path $fp)) { $BytesLimpiados += $sz }
             }
     }
     $WUFolder = "C:\Windows\SoftwareDistribution\Download"
@@ -1834,8 +1833,9 @@ try {
         Get-ChildItem $WUFolder -Recurse -Force -ErrorAction SilentlyContinue |
             Where-Object { -not $_.PSIsContainer -and $_.LastWriteTime -lt (Get-Date).AddDays(-30) } |
             ForEach-Object {
-                $BytesLimpiados += $_.Length
-                Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+                $sz = $_.Length; $fp = $_.FullName
+                Remove-Item $fp -Force -ErrorAction SilentlyContinue
+                if (-not (Test-Path $fp)) { $BytesLimpiados += $sz }
             }
     }
     $MBLimpiados = [math]::Round($BytesLimpiados / 1MB, 1)
@@ -1858,8 +1858,11 @@ try {
     $UserList = @()
     $AdminMembers = @()
     try {
-        $AdminMembers = Get-LocalGroupMember -Group "Administradores" -ErrorAction SilentlyContinue |
-            ForEach-Object { ($_.Name -split '\\')[-1] }
+        $AdminGroupName = (Get-LocalGroup -ErrorAction SilentlyContinue | Where-Object { $_.SID.Value -eq 'S-1-5-32-544' }).Name
+        if ($AdminGroupName) {
+            $AdminMembers = Get-LocalGroupMember -Group $AdminGroupName -ErrorAction SilentlyContinue |
+                ForEach-Object { ($_.Name -split '\\')[-1] }
+        }
     } catch {}
     Get-LocalUser -ErrorAction SilentlyContinue | Where-Object { $_.Enabled } | ForEach-Object {
         $UName = $_.Name; $IsAdmin = $AdminMembers -contains $UName
@@ -1889,7 +1892,7 @@ try {
     $Shortcuts = $Shortcuts | Select-Object -Unique | Sort-Object
 
     # === 6. ESPACIO LIBRE EN DISCO ===
-    $Disco = Get-WmiObject Win32_LogicalDisk -Filter "DeviceID='C:'" -ErrorAction SilentlyContinue
+    $Disco = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'" -ErrorAction SilentlyContinue
     $EspacioLibreGB = if ($Disco) { [math]::Round($Disco.FreeSpace / 1GB, 1) } else { 0 }
     $EspacioTotalGB = if ($Disco) { [math]::Round($Disco.Size / 1GB, 0) } else { 0 }
 
@@ -1927,9 +1930,6 @@ try {
 
     # Crear tarea programada: solo al iniciar sesion, delay 2 minutos
     $TaskName = "HCG_ReporteSistema"
-
-    # Eliminar tarea si ya existe
-    schtasks /delete /tn $TaskName /f 2>$null | Out-Null
 
     try {
         $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -NonInteractive -File `"$ScriptPath`""
@@ -1991,10 +1991,10 @@ try {
 
     # --- RAM ---
     $OS = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
-    $RAMTotalGB = [math]::Round($OS.TotalVisibleMemorySize / 1MB, 1)
-    $RAMLibreGB = [math]::Round($OS.FreePhysicalMemory / 1MB, 1)
+    $RAMTotalGB = if ($OS.TotalVisibleMemorySize) { [math]::Round($OS.TotalVisibleMemorySize / 1MB, 1) } else { 0 }
+    $RAMLibreGB = if ($OS.FreePhysicalMemory) { [math]::Round($OS.FreePhysicalMemory / 1MB, 1) } else { 0 }
     $RAMUsadaGB = [math]::Round($RAMTotalGB - $RAMLibreGB, 1)
-    $RAMPct = [math]::Round(($RAMUsadaGB / $RAMTotalGB) * 100, 0)
+    $RAMPct = if ($RAMTotalGB -gt 0) { [math]::Round(($RAMUsadaGB / $RAMTotalGB) * 100, 0) } else { 0 }
 
     # --- Top 5 procesos ---
     $Top5 = Get-Process -ErrorAction SilentlyContinue |
@@ -2073,9 +2073,6 @@ try {
 
     # Crear tarea programada: cada 4 horas + al iniciar sesion (delay 3 min)
     $TaskName = "HCG_ReporteDiagnostico"
-
-    # Eliminar tarea si ya existe
-    schtasks /delete /tn $TaskName /f 2>$null | Out-Null
 
     try {
         $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -NonInteractive -File `"$ScriptPath`""

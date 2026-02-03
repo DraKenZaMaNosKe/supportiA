@@ -44,10 +44,10 @@ try {
 
     # --- RAM ---
     $OS = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
-    $RAMTotalGB = [math]::Round($OS.TotalVisibleMemorySize / 1MB, 1)
-    $RAMLibreGB = [math]::Round($OS.FreePhysicalMemory / 1MB, 1)
+    $RAMTotalGB = if ($OS.TotalVisibleMemorySize) { [math]::Round($OS.TotalVisibleMemorySize / 1MB, 1) } else { 0 }
+    $RAMLibreGB = if ($OS.FreePhysicalMemory) { [math]::Round($OS.FreePhysicalMemory / 1MB, 1) } else { 0 }
     $RAMUsadaGB = [math]::Round($RAMTotalGB - $RAMLibreGB, 1)
-    $RAMPct = [math]::Round(($RAMUsadaGB / $RAMTotalGB) * 100, 0)
+    $RAMPct = if ($RAMTotalGB -gt 0) { [math]::Round(($RAMUsadaGB / $RAMTotalGB) * 100, 0) } else { 0 }
 
     # --- Top 5 procesos por consumo de memoria ---
     $Top5 = Get-Process -ErrorAction SilentlyContinue |
