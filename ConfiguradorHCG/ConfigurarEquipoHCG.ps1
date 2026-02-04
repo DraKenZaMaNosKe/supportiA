@@ -1072,196 +1072,49 @@ function Set-TemaOscuro {
 }
 
 function Set-FondoPantalla {
-    param([string]$NumInventario)
-
     Write-StepHeader -Step 14 -Title "ESTABLECIENDO FONDO DE PANTALLA"
     Show-ProgressCosmos -Step 14
 
-    $RutaHCG = "C:\ProgramData\HCG"
-    if (-not (Test-Path $RutaHCG)) { New-Item -ItemType Directory -Path $RutaHCG -Force | Out-Null }
-    $FondoLocal = "$RutaHCG\HCG_Fondo.png"
-    $NombrePC = "PC-$NumInventario"
-    $FechaConfig = Get-Date -Format "dd/MM/yyyy"
+    # Copiar wallpaper_hcg.jpg tal cual (sin modificar) a Imagenes publicas
+    $ImagenServidor = "$RutaWallpaper\wallpaper_hcg.jpg"
+    $CarpetaDestino = "C:\Users\Public\Pictures"
+    if (-not (Test-Path $CarpetaDestino)) { New-Item -ItemType Directory -Path $CarpetaDestino -Force | Out-Null }
+    $FondoLocal = "$CarpetaDestino\wallpaper_hcg.jpg"
 
-    # =================================================================
-    # METODO 1: HTML + Chrome headless (diseño completo CSS)
-    # =================================================================
-    $TemplateHTML = "$RutaWallpaper\wallpaper_template.html"
-    $ImagenFondo = "$RutaWallpaper\wallpaper_hcg.jpg"
-    $ChromePath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
-    $WallpaperGenerado = $false
-
-    if ((Test-Path $TemplateHTML) -and (Test-Path $ImagenFondo) -and (Test-Path $ChromePath)) {
-        Write-Log "Generando wallpaper con HTML + Chrome..."
-
-        try {
-            # Crear carpeta temporal para el renderizado
-            $TempDir = "$env:TEMP\HCG_Wallpaper"
-            if (-not (Test-Path $TempDir)) { New-Item -ItemType Directory -Path $TempDir -Force | Out-Null }
-
-            # Copiar imagen de fondo a carpeta temporal
-            Copy-Item -Path $ImagenFondo -Destination "$TempDir\wallpaper_hcg.jpg" -Force
-
-            # Leer template y reemplazar variables
-            $HTMLContent = Get-Content -Path $TemplateHTML -Raw -Encoding UTF8
-            $HTMLContent = $HTMLContent -replace '\{\{HOSTNAME\}\}', $NombrePC
-            $HTMLContent = $HTMLContent -replace '\{\{INVENTARIO\}\}', $NumInventario
-            $HTMLContent = $HTMLContent -replace '\{\{FECHA\}\}', $FechaConfig
-            $HTMLContent = $HTMLContent -replace '\{\{EXT\}\}', '54425'
-            $HTMLContent = $HTMLContent -replace '\{\{DEPTO\}\}', $Script:Departamento
-
-            # Guardar HTML personalizado (sin BOM para compatibilidad con Chrome)
-            $HTMLLocal = "$TempDir\wallpaper_render.html"
-            [System.IO.File]::WriteAllText($HTMLLocal, $HTMLContent, (New-Object System.Text.UTF8Encoding $false))
-
-            # Renderizar con Chrome headless a PNG
-            $ScreenshotPath = "$TempDir\wallpaper_screenshot.png"
-            $FileUrl = "file:///$([Uri]::EscapeUriString(($HTMLLocal -replace '\\','/')))"
-
-            $ChromeArgs = @(
-                "--headless=new"
-                "--disable-gpu"
-                "--no-sandbox"
-                "--disable-software-rasterizer"
-                "--window-size=1920,1080"
-                "--screenshot=`"$ScreenshotPath`""
-                "--hide-scrollbars"
-                "--default-background-color=00000000"
-                "`"$FileUrl`""
-            )
-
-            $ChromeProcess = Start-Process -FilePath $ChromePath -ArgumentList ($ChromeArgs -join " ") -Wait -PassThru -NoNewWindow -ErrorAction Stop
-
-            if ($ChromeProcess.ExitCode -ne 0) {
-                Write-Log "Chrome devolvio codigo de salida $($ChromeProcess.ExitCode)" "WARN"
-            }
-
-            # Esperar a que se genere el archivo
-            Start-Sleep -Seconds 2
-
-            if (Test-Path $ScreenshotPath) {
-                Copy-Item -Path $ScreenshotPath -Destination $FondoLocal -Force
-                Write-Log "Wallpaper HTML generado con Chrome headless" "OK"
-                $WallpaperGenerado = $true
-            } else {
-                Write-Log "Chrome no genero el screenshot, usando fallback" "WARN"
-            }
-
-            # Limpiar temporales
-            Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
-        } catch {
-            Write-Log "Error al generar wallpaper HTML: $($_.Exception.Message)" "WARN"
-        }
+    if (Test-Path $ImagenServidor) {
+        Copy-Item -Path $ImagenServidor -Destination $FondoLocal -Force
+        Write-Log "Wallpaper copiado a $FondoLocal" "OK"
     } else {
-        if (-not (Test-Path $TemplateHTML)) { Write-Log "Template HTML no encontrado, usando fallback" "WARN" }
-        if (-not (Test-Path $ChromePath)) { Write-Log "Chrome no instalado aun, usando fallback" "WARN" }
+        Write-Log "No se encontro wallpaper_hcg.jpg en: $RutaWallpaper" "ERROR"
+        return
     }
 
-    # =================================================================
-    # METODO 2 (FALLBACK): System.Drawing sobre imagen JPG
-    # =================================================================
-    if (-not $WallpaperGenerado) {
-        $Fondo = "$RutaWallpaper\wallpaper_hcg.jpg"
-        if (-not (Test-Path $Fondo)) { $Fondo = "$RutaAccesos\Fondo de Pantalla.jpg" }
-        if (-not (Test-Path $Fondo)) { $Fondo = Find-Installer -Carpeta $RutaWallpaper -Filtro "*.jpg" }
+    # Aplicar como fondo de pantalla (usuario actual)
+    Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "Wallpaper" -Value $FondoLocal
+    Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WallpaperStyle" -Value "10"
+    rundll32.exe user32.dll, UpdatePerUserSystemParameters 1, True
 
-        $FondoLocal = "$RutaHCG\HCG_Fondo.jpg"
-
-        if ($Fondo -and (Test-Path $Fondo)) {
-            try {
-                Add-Type -AssemblyName System.Drawing
-
-                $ImgOrig = [System.Drawing.Image]::FromFile($Fondo)
-                $Bmp = New-Object System.Drawing.Bitmap($ImgOrig.Width, $ImgOrig.Height)
-                $Gfx = [System.Drawing.Graphics]::FromImage($Bmp)
-                $Gfx.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-                $Gfx.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-                $Gfx.DrawImage($ImgOrig, 0, 0, $ImgOrig.Width, $ImgOrig.Height)
-
-                $W = $ImgOrig.Width; $H = $ImgOrig.Height
-
-                # Franja inferior
-                $AlturaFranja = 52
-                $BrushFranja = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(140, 0, 0, 0))
-                $Gfx.FillRectangle($BrushFranja, 0, ($H - $AlturaFranja), $W, $AlturaFranja)
-
-                $PenLinea = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(60, 255, 255, 255)), 1
-                $Gfx.DrawLine($PenLinea, 0, ($H - $AlturaFranja), $W, ($H - $AlturaFranja))
-
-                $SF = New-Object System.Drawing.StringFormat
-                $SF.LineAlignment = [System.Drawing.StringAlignment]::Center
-                $FontInfo = New-Object System.Drawing.Font("Segoe UI", 13)
-                $BrushWhite = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(220, 255, 255, 255))
-                $BrushGray = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(160, 255, 255, 255))
-                $YFranja = $H - $AlturaFranja
-
-                $SF.Alignment = [System.Drawing.StringAlignment]::Near
-                $TextoIzq = "  $NombrePC  |  Inv. ST: $NumInventario  |  Configurado: $FechaConfig"
-                $RectIzq = New-Object System.Drawing.RectangleF(10, $YFranja, ($W / 2), $AlturaFranja)
-                $Gfx.DrawString($TextoIzq, $FontInfo, $BrushWhite, $RectIzq, $SF)
-
-                $SF.Alignment = [System.Drawing.StringAlignment]::Far
-                $TextoDer = "$($Script:Departamento)  |  Hospital Civil FAA  "
-                $RectDer = New-Object System.Drawing.RectangleF(($W / 2), $YFranja, (($W / 2) - 10), $AlturaFranja)
-                $Gfx.DrawString($TextoDer, $FontInfo, $BrushGray, $RectDer, $SF)
-
-                $Bmp.Save($FondoLocal, [System.Drawing.Imaging.ImageFormat]::Jpeg)
-
-                # Liberar recursos GDI+ de forma segura
-                foreach ($obj in @($FontInfo, $BrushWhite, $BrushGray, $BrushFranja, $PenLinea, $SF, $Gfx, $Bmp, $ImgOrig)) {
-                    try { if ($obj) { $obj.Dispose() } } catch {}
-                }
-
-                Write-Log "Wallpaper fallback con System.Drawing" "OK"
-                $WallpaperGenerado = $true
-            } catch {
-                # Liberar recursos GDI+ si quedaron abiertos
-                foreach ($obj in @($FontInfo, $BrushWhite, $BrushGray, $BrushFranja, $PenLinea, $SF, $Gfx, $Bmp, $ImgOrig)) {
-                    try { if ($obj) { $obj.Dispose() } } catch {}
-                }
-                try {
-                    Copy-Item -Path $Fondo -Destination $FondoLocal -Force -ErrorAction Stop
-                    Write-Log "Wallpaper copiado sin personalizar: $($_.Exception.Message)" "WARN"
-                    $WallpaperGenerado = $true
-                } catch {
-                    Write-Log "No se pudo copiar wallpaper: $($_.Exception.Message)" "ERROR"
-                }
-            }
+    # Aplicar tambien al perfil por defecto (para el usuario de inventario)
+    try {
+        if (-not (Test-Path "Registry::HKU\DefaultUser")) {
+            reg load "HKU\DefaultUser" "C:\Users\Default\NTUSER.DAT" 2>$null
         }
+        $DefDesktop = "Registry::HKU\DefaultUser\Control Panel\Desktop"
+        if (-not (Test-Path $DefDesktop)) { New-Item -Path $DefDesktop -Force | Out-Null }
+        Set-ItemProperty -Path $DefDesktop -Name "Wallpaper" -Value $FondoLocal
+        Set-ItemProperty -Path $DefDesktop -Name "WallpaperStyle" -Value "10"
+        [gc]::Collect()
+        [gc]::WaitForPendingFinalizers()
+        reg unload "HKU\DefaultUser" 2>$null
+        Write-Log "Fondo aplicado al perfil por defecto" "OK"
+    } catch {
+        [gc]::Collect()
+        [gc]::WaitForPendingFinalizers()
+        reg unload "HKU\DefaultUser" 2>$null
     }
 
-    # =================================================================
-    # APLICAR WALLPAPER AL SISTEMA
-    # =================================================================
-    if ($WallpaperGenerado -and (Test-Path $FondoLocal)) {
-        Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "Wallpaper" -Value $FondoLocal
-        Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WallpaperStyle" -Value "10"
-        rundll32.exe user32.dll, UpdatePerUserSystemParameters 1, True
-
-        # Aplicar tambien al perfil por defecto (para el usuario de inventario)
-        try {
-            if (-not (Test-Path "Registry::HKU\DefaultUser")) {
-                reg load "HKU\DefaultUser" "C:\Users\Default\NTUSER.DAT" 2>$null
-            }
-            $DefDesktop = "Registry::HKU\DefaultUser\Control Panel\Desktop"
-            if (-not (Test-Path $DefDesktop)) { New-Item -Path $DefDesktop -Force | Out-Null }
-            Set-ItemProperty -Path $DefDesktop -Name "Wallpaper" -Value $FondoLocal
-            Set-ItemProperty -Path $DefDesktop -Name "WallpaperStyle" -Value "10"
-            [gc]::Collect()
-            [gc]::WaitForPendingFinalizers()
-            reg unload "HKU\DefaultUser" 2>$null
-            Write-Log "Fondo aplicado al perfil por defecto" "OK"
-        } catch {
-            [gc]::Collect()
-            [gc]::WaitForPendingFinalizers()
-            reg unload "HKU\DefaultUser" 2>$null
-        }
-
-        Write-Log "Fondo de pantalla establecido" "OK"
-        $Script:SoftwareInstalado += "Fondo HCG"
-    } else {
-        Write-Log "No se encontro imagen de fondo" "WARN"
-    }
+    Write-Log "Fondo de pantalla establecido" "OK"
+    $Script:SoftwareInstalado += "Fondo HCG"
 }
 
 function Install-WinRAR {
@@ -1610,6 +1463,16 @@ function Add-DedalusSyncStartup {
         # Copiar el archivo al equipo local
         $LocalSync = "C:\Dedalus\sync_xhis6_startup.bat"
         Copy-Item -Path $SyncBat -Destination $LocalSync -Force
+
+        # Desbloquear archivo para evitar ventana de seguridad "Open File"
+        Unblock-File -Path $LocalSync -ErrorAction SilentlyContinue
+        Remove-Item -Path $LocalSync -Stream Zone.Identifier -ErrorAction SilentlyContinue
+
+        # Desbloquear todos los archivos de Dedalus
+        Get-ChildItem "C:\Dedalus" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+            Unblock-File -Path $_.FullName -ErrorAction SilentlyContinue
+        }
+        Write-Log "Archivos Dedalus desbloqueados (sin ventana de seguridad)" "OK"
 
         # Crear acceso directo en la carpeta de Inicio para todos los usuarios
         $StartupFolder = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp"
@@ -2338,9 +2201,8 @@ function Verify-Configuracion {
     }
 
     # --- Fondo de pantalla ---
-    $FondoHCG = "C:\ProgramData\HCG\HCG_Fondo.png"
-    $FondoHCGJpg = "C:\ProgramData\HCG\HCG_Fondo.jpg"
-    if ((Test-Path $FondoHCG) -or (Test-Path $FondoHCGJpg)) {
+    $FondoHCG = "C:\Users\Public\Pictures\wallpaper_hcg.jpg"
+    if (Test-Path $FondoHCG) {
         $Checks += @{ Status = "OK"; Msg = "Fondo de pantalla configurado" }
     } else {
         $Checks += @{ Status = "WARN"; Msg = "Fondo de pantalla NO encontrado" }
@@ -2418,7 +2280,7 @@ Install-WinRAR; Play-StepSound
 Install-DotNet35; Play-StepSound
 Install-AcrobatReader; Play-StepSound
 Install-Chrome; Play-StepSound
-Set-FondoPantalla -NumInventario $NumInventario; Play-StepSound
+Set-FondoPantalla; Play-StepSound
 Install-Office; Play-StepSound
 Install-Dedalus; Play-StepSound
 Add-DedalusSyncStartup; Play-StepSound
