@@ -1117,6 +1117,273 @@ function Set-FondoPantalla {
     $Script:SoftwareInstalado += "Fondo HCG"
 }
 
+function Set-LockScreenBackground {
+    param([string]$NumInventario)
+
+    Write-StepHeader -Step 14.5 -Title "GENERANDO FONDO DE PANTALLA DE BLOQUEO"
+    Show-ProgressCosmos -Step 14
+
+    try {
+        Add-Type -AssemblyName System.Drawing
+
+        # Detectar resolucion de pantalla
+        Add-Type -AssemblyName System.Windows.Forms
+        $Screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+        $Width = $Screen.Width
+        $Height = $Screen.Height
+        if ($Width -lt 1920) { $Width = 1920; $Height = 1080 }
+
+        Write-Log "Generando fondo de bloqueo ($Width x $Height)..."
+
+        # Usar inventario como semilla para generacion deterministica
+        $Seed = [int]$NumInventario
+        $Rnd = New-Object System.Random($Seed)
+
+        # =================================================================
+        # PALETAS DE COLORES PROFESIONALES
+        # =================================================================
+        $Paletas = @(
+            @{ Base = @(15, 30, 60);    Accent1 = @(45, 80, 140);   Accent2 = @(80, 130, 180);  Accent3 = @(120, 170, 210); Nombre = "Oceano Profundo" },
+            @{ Base = @(25, 25, 35);    Accent1 = @(60, 50, 90);    Accent2 = @(100, 80, 140);  Accent3 = @(150, 120, 180); Nombre = "Anochecer" },
+            @{ Base = @(20, 35, 35);    Accent1 = @(40, 80, 80);    Accent2 = @(70, 130, 120);  Accent3 = @(100, 170, 160); Nombre = "Bosque" },
+            @{ Base = @(35, 25, 30);    Accent1 = @(80, 50, 60);    Accent2 = @(130, 80, 100);  Accent3 = @(180, 120, 140); Nombre = "Atardecer" },
+            @{ Base = @(25, 30, 40);    Accent1 = @(50, 70, 100);   Accent2 = @(90, 120, 150);  Accent3 = @(140, 170, 200); Nombre = "Acero" },
+            @{ Base = @(30, 35, 25);    Accent1 = @(70, 90, 50);    Accent2 = @(110, 140, 80);  Accent3 = @(150, 180, 120); Nombre = "Pradera" },
+            @{ Base = @(40, 30, 25);    Accent1 = @(100, 70, 50);   Accent2 = @(150, 110, 80);  Accent3 = @(200, 160, 120); Nombre = "Tierra" },
+            @{ Base = @(20, 30, 45);    Accent1 = @(40, 70, 110);   Accent2 = @(70, 110, 160);  Accent3 = @(110, 160, 210); Nombre = "Cielo Nocturno" }
+        )
+
+        $Paleta = $Paletas[$Seed % $Paletas.Count]
+        $Estilo = $Seed % 5  # 5 estilos diferentes
+
+        # Crear bitmap
+        $Bmp = New-Object System.Drawing.Bitmap($Width, $Height)
+        $Gfx = [System.Drawing.Graphics]::FromImage($Bmp)
+        $Gfx.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $Gfx.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $Gfx.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+
+        # Color base
+        $ColorBase = [System.Drawing.Color]::FromArgb($Paleta.Base[0], $Paleta.Base[1], $Paleta.Base[2])
+        $Gfx.Clear($ColorBase)
+
+        # =================================================================
+        # ESTILO 0: ONDAS SUAVES (tipo macOS)
+        # =================================================================
+        if ($Estilo -eq 0) {
+            for ($layer = 0; $layer -lt 6; $layer++) {
+                $ColorIdx = $layer % 3
+                $ColorArr = if ($ColorIdx -eq 0) { $Paleta.Accent1 } elseif ($ColorIdx -eq 1) { $Paleta.Accent2 } else { $Paleta.Accent3 }
+                $Alpha = 40 + ($layer * 15)
+                $Color = [System.Drawing.Color]::FromArgb($Alpha, $ColorArr[0], $ColorArr[1], $ColorArr[2])
+                $Brush = New-Object System.Drawing.SolidBrush($Color)
+
+                $Points = New-Object System.Collections.ArrayList
+                $BaseY = $Height * (0.3 + ($layer * 0.12))
+                $Amplitude = 80 + ($Rnd.Next(60))
+                $Frequency = 0.002 + ($Rnd.NextDouble() * 0.003)
+                $Phase = $Rnd.NextDouble() * 6.28
+
+                for ($x = 0; $x -le $Width; $x += 20) {
+                    $y = $BaseY + [Math]::Sin(($x * $Frequency) + $Phase) * $Amplitude
+                    $y += [Math]::Sin(($x * $Frequency * 2.5) + $Phase * 1.5) * ($Amplitude * 0.3)
+                    [void]$Points.Add([System.Drawing.PointF]::new($x, $y))
+                }
+                [void]$Points.Add([System.Drawing.PointF]::new($Width, $Height))
+                [void]$Points.Add([System.Drawing.PointF]::new(0, $Height))
+
+                if ($Points.Count -ge 3) {
+                    $Gfx.FillPolygon($Brush, $Points.ToArray())
+                }
+                $Brush.Dispose()
+            }
+        }
+
+        # =================================================================
+        # ESTILO 1: BOKEH / CIRCULOS SUAVES
+        # =================================================================
+        elseif ($Estilo -eq 1) {
+            # Gradiente de fondo
+            $GradBrush = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
+                [System.Drawing.Point]::new(0, 0),
+                [System.Drawing.Point]::new($Width, $Height),
+                [System.Drawing.Color]::FromArgb($Paleta.Base[0], $Paleta.Base[1], $Paleta.Base[2]),
+                [System.Drawing.Color]::FromArgb($Paleta.Accent1[0], $Paleta.Accent1[1], $Paleta.Accent1[2])
+            )
+            $Gfx.FillRectangle($GradBrush, 0, 0, $Width, $Height)
+            $GradBrush.Dispose()
+
+            # Circulos bokeh
+            for ($i = 0; $i -lt 35; $i++) {
+                $Size = $Rnd.Next(50, 350)
+                $X = $Rnd.Next(-100, $Width + 100)
+                $Y = $Rnd.Next(-100, $Height + 100)
+                $Alpha = $Rnd.Next(8, 35)
+                $ColorIdx = $Rnd.Next(3)
+                $ColorArr = if ($ColorIdx -eq 0) { $Paleta.Accent1 } elseif ($ColorIdx -eq 1) { $Paleta.Accent2 } else { $Paleta.Accent3 }
+                $Color = [System.Drawing.Color]::FromArgb($Alpha, $ColorArr[0], $ColorArr[1], $ColorArr[2])
+
+                $Path = New-Object System.Drawing.Drawing2D.GraphicsPath
+                $Path.AddEllipse($X, $Y, $Size, $Size)
+                $CircleBrush = New-Object System.Drawing.Drawing2D.PathGradientBrush($Path)
+                $CircleBrush.CenterColor = [System.Drawing.Color]::FromArgb($Alpha + 20, $ColorArr[0], $ColorArr[1], $ColorArr[2])
+                $CircleBrush.SurroundColors = @([System.Drawing.Color]::FromArgb(0, $ColorArr[0], $ColorArr[1], $ColorArr[2]))
+                $Gfx.FillEllipse($CircleBrush, $X, $Y, $Size, $Size)
+                $CircleBrush.Dispose()
+                $Path.Dispose()
+            }
+        }
+
+        # =================================================================
+        # ESTILO 2: AURORA / GRADIENTES FLUIDOS
+        # =================================================================
+        elseif ($Estilo -eq 2) {
+            for ($layer = 0; $layer -lt 8; $layer++) {
+                $ColorIdx = $layer % 3
+                $ColorArr = if ($ColorIdx -eq 0) { $Paleta.Accent1 } elseif ($ColorIdx -eq 1) { $Paleta.Accent2 } else { $Paleta.Accent3 }
+                $Alpha = 20 + ($Rnd.Next(25))
+
+                $Points = New-Object System.Collections.ArrayList
+                $CenterY = $Height * (0.2 + ($Rnd.NextDouble() * 0.6))
+                $Spread = 100 + ($Rnd.Next(200))
+
+                for ($x = 0; $x -le $Width; $x += 15) {
+                    $noise1 = [Math]::Sin($x * 0.003 + $layer) * 150
+                    $noise2 = [Math]::Sin($x * 0.007 + $layer * 2) * 80
+                    $y = $CenterY + $noise1 + $noise2
+                    [void]$Points.Add([System.Drawing.PointF]::new($x, $y - $Spread))
+                }
+                for ($x = $Width; $x -ge 0; $x -= 15) {
+                    $noise1 = [Math]::Sin($x * 0.003 + $layer) * 150
+                    $noise2 = [Math]::Sin($x * 0.007 + $layer * 2) * 80
+                    $y = $CenterY + $noise1 + $noise2
+                    [void]$Points.Add([System.Drawing.PointF]::new($x, $y + $Spread))
+                }
+
+                if ($Points.Count -ge 3) {
+                    $Color = [System.Drawing.Color]::FromArgb($Alpha, $ColorArr[0], $ColorArr[1], $ColorArr[2])
+                    $Brush = New-Object System.Drawing.SolidBrush($Color)
+                    $Gfx.FillPolygon($Brush, $Points.ToArray())
+                    $Brush.Dispose()
+                }
+            }
+        }
+
+        # =================================================================
+        # ESTILO 3: GEOMETRICO MINIMAL
+        # =================================================================
+        elseif ($Estilo -eq 3) {
+            # Lineas diagonales sutiles
+            for ($i = 0; $i -lt 12; $i++) {
+                $ColorArr = if ($i % 3 -eq 0) { $Paleta.Accent1 } elseif ($i % 3 -eq 1) { $Paleta.Accent2 } else { $Paleta.Accent3 }
+                $Alpha = 15 + ($Rnd.Next(20))
+                $Color = [System.Drawing.Color]::FromArgb($Alpha, $ColorArr[0], $ColorArr[1], $ColorArr[2])
+                $Pen = New-Object System.Drawing.Pen($Color, (2 + $Rnd.Next(4)))
+
+                $X1 = $Rnd.Next($Width)
+                $Y1 = $Rnd.Next($Height)
+                $Angle = $Rnd.NextDouble() * 3.14159
+                $Length = 400 + $Rnd.Next(800)
+                $X2 = $X1 + [Math]::Cos($Angle) * $Length
+                $Y2 = $Y1 + [Math]::Sin($Angle) * $Length
+
+                $Gfx.DrawLine($Pen, $X1, $Y1, $X2, $Y2)
+                $Pen.Dispose()
+            }
+
+            # Formas geometricas
+            for ($i = 0; $i -lt 8; $i++) {
+                $ColorArr = if ($i % 3 -eq 0) { $Paleta.Accent2 } elseif ($i % 3 -eq 1) { $Paleta.Accent3 } else { $Paleta.Accent1 }
+                $Alpha = 25 + ($Rnd.Next(30))
+                $Color = [System.Drawing.Color]::FromArgb($Alpha, $ColorArr[0], $ColorArr[1], $ColorArr[2])
+                $Brush = New-Object System.Drawing.SolidBrush($Color)
+
+                $X = $Rnd.Next($Width)
+                $Y = $Rnd.Next($Height)
+                $Size = 100 + $Rnd.Next(300)
+                $Shape = $Rnd.Next(3)
+
+                if ($Shape -eq 0) {
+                    $Gfx.FillEllipse($Brush, $X, $Y, $Size, $Size)
+                } elseif ($Shape -eq 1) {
+                    $Gfx.FillRectangle($Brush, $X, $Y, $Size, $Size * 0.6)
+                } else {
+                    $TriPoints = @(
+                        [System.Drawing.PointF]::new($X + $Size/2, $Y),
+                        [System.Drawing.PointF]::new($X, $Y + $Size),
+                        [System.Drawing.PointF]::new($X + $Size, $Y + $Size)
+                    )
+                    $Gfx.FillPolygon($Brush, $TriPoints)
+                }
+                $Brush.Dispose()
+            }
+        }
+
+        # =================================================================
+        # ESTILO 4: MONTANAS / CAPAS
+        # =================================================================
+        elseif ($Estilo -eq 4) {
+            for ($layer = 0; $layer -lt 5; $layer++) {
+                $ColorArr = if ($layer -lt 2) { $Paleta.Accent1 } elseif ($layer -lt 4) { $Paleta.Accent2 } else { $Paleta.Accent3 }
+                $Darkness = 1.0 - ($layer * 0.15)
+                $R = [int]($ColorArr[0] * $Darkness)
+                $G = [int]($ColorArr[1] * $Darkness)
+                $B = [int]($ColorArr[2] * $Darkness)
+                $Color = [System.Drawing.Color]::FromArgb(180, $R, $G, $B)
+                $Brush = New-Object System.Drawing.SolidBrush($Color)
+
+                $Points = New-Object System.Collections.ArrayList
+                $BaseY = $Height * (0.4 + ($layer * 0.12))
+
+                [void]$Points.Add([System.Drawing.PointF]::new(0, $Height))
+                for ($x = 0; $x -le $Width; $x += 30) {
+                    $Peak = [Math]::Sin($x * 0.005 + $layer * 2) * (150 - $layer * 20)
+                    $Peak += [Math]::Sin($x * 0.012 + $layer) * (80 - $layer * 10)
+                    $y = $BaseY - [Math]::Abs($Peak)
+                    [void]$Points.Add([System.Drawing.PointF]::new($x, $y))
+                }
+                [void]$Points.Add([System.Drawing.PointF]::new($Width, $Height))
+
+                if ($Points.Count -ge 3) {
+                    $Gfx.FillPolygon($Brush, $Points.ToArray())
+                }
+                $Brush.Dispose()
+            }
+        }
+
+        # =================================================================
+        # GUARDAR Y APLICAR
+        # =================================================================
+        $LockScreenPath = "C:\Windows\Web\Wallpaper\HCG"
+        if (-not (Test-Path $LockScreenPath)) { New-Item -ItemType Directory -Path $LockScreenPath -Force | Out-Null }
+        $ImagePath = "$LockScreenPath\LockScreen_$NumInventario.jpg"
+
+        $Bmp.Save($ImagePath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+        $Gfx.Dispose()
+        $Bmp.Dispose()
+
+        Write-Log "Imagen generada: $($Paleta.Nombre) (Estilo $Estilo)" "OK"
+
+        # Aplicar como fondo de pantalla de bloqueo via registro
+        $RegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization"
+        if (-not (Test-Path $RegPath)) { New-Item -Path $RegPath -Force | Out-Null }
+        Set-ItemProperty -Path $RegPath -Name "LockScreenImage" -Value $ImagePath -Type String
+        Set-ItemProperty -Path $RegPath -Name "NoChangingLockScreen" -Value 1 -Type DWord
+
+        # Tambien configurar via PersonalizationCSP (Windows 10/11)
+        $CSPPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP"
+        if (-not (Test-Path $CSPPath)) { New-Item -Path $CSPPath -Force | Out-Null }
+        Set-ItemProperty -Path $CSPPath -Name "LockScreenImagePath" -Value $ImagePath -Type String
+        Set-ItemProperty -Path $CSPPath -Name "LockScreenImageStatus" -Value 1 -Type DWord
+
+        Write-Log "Fondo de bloqueo aplicado: $($Paleta.Nombre)" "OK"
+        $Script:SoftwareInstalado += "Lock Screen personalizado"
+
+    } catch {
+        Write-Log "Error al generar fondo de bloqueo: $($_.Exception.Message)" "WARN"
+    }
+}
+
 function Install-WinRAR {
     Write-StepHeader -Step 10 -Title "INSTALANDO WINRAR CON LICENCIA"
     Show-ProgressCosmos -Step 10
@@ -2208,6 +2475,14 @@ function Verify-Configuracion {
         $Checks += @{ Status = "WARN"; Msg = "Fondo de pantalla NO encontrado" }
     }
 
+    # --- Fondo de bloqueo ---
+    $LockScreenHCG = "C:\Windows\Web\Wallpaper\HCG\LockScreen_$NumInventario.jpg"
+    if (Test-Path $LockScreenHCG) {
+        $Checks += @{ Status = "OK"; Msg = "Fondo de pantalla de bloqueo generado" }
+    } else {
+        $Checks += @{ Status = "WARN"; Msg = "Fondo de pantalla de bloqueo NO encontrado" }
+    }
+
     # --- Mostrar resultados ---
     foreach ($check in $Checks) {
         $Icono = switch ($check.Status) {
@@ -2281,6 +2556,7 @@ Install-DotNet35; Play-StepSound
 Install-AcrobatReader; Play-StepSound
 Install-Chrome; Play-StepSound
 Set-FondoPantalla; Play-StepSound
+Set-LockScreenBackground -NumInventario $NumInventario; Play-StepSound
 Install-Office; Play-StepSound
 Install-Dedalus; Play-StepSound
 Add-DedalusSyncStartup; Play-StepSound
