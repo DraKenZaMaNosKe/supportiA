@@ -1126,12 +1126,28 @@ function Set-LockScreenBackground {
     try {
         Add-Type -AssemblyName System.Drawing
 
-        # Detectar resolucion de pantalla
-        Add-Type -AssemblyName System.Windows.Forms
-        $Screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-        $Width = $Screen.Width
-        $Height = $Screen.Height
-        if ($Width -lt 1920) { $Width = 1920; $Height = 1080 }
+        # Detectar resolucion de pantalla (con fallback si falla)
+        $Width = 1920
+        $Height = 1080
+        try {
+            Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+            $Screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            if ($Screen.Width -ge 1920) {
+                $Width = $Screen.Width
+                $Height = $Screen.Height
+            }
+        } catch {
+            # Fallback: intentar via WMI
+            try {
+                $VideoMode = Get-CimInstance -ClassName Win32_VideoController -ErrorAction Stop | Select-Object -First 1
+                if ($VideoMode.CurrentHorizontalResolution -ge 1920) {
+                    $Width = $VideoMode.CurrentHorizontalResolution
+                    $Height = $VideoMode.CurrentVerticalResolution
+                }
+            } catch {
+                Write-Log "Usando resolucion por defecto (1920x1080)" "INFO"
+            }
+        }
 
         Write-Log "Generando fondo de bloqueo ($Width x $Height)..."
 
@@ -1354,32 +1370,79 @@ function Set-LockScreenBackground {
         # =================================================================
         # GUARDAR Y APLICAR
         # =================================================================
-        $LockScreenPath = "C:\Windows\Web\Wallpaper\HCG"
-        if (-not (Test-Path $LockScreenPath)) { New-Item -ItemType Directory -Path $LockScreenPath -Force | Out-Null }
-        $ImagePath = "$LockScreenPath\LockScreen_$NumInventario.jpg"
+        $ImagePath = $null
+        $ImageSaved = $false
 
-        $Bmp.Save($ImagePath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
-        $Gfx.Dispose()
-        $Bmp.Dispose()
+        # Intentar guardar en ubicacion del sistema (requiere admin)
+        try {
+            $LockScreenPath = "C:\Windows\Web\Wallpaper\HCG"
+            if (-not (Test-Path $LockScreenPath)) {
+                New-Item -ItemType Directory -Path $LockScreenPath -Force -ErrorAction Stop | Out-Null
+            }
+            $ImagePath = "$LockScreenPath\LockScreen_$NumInventario.jpg"
+            $Bmp.Save($ImagePath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+            $ImageSaved = $true
+            Write-Log "Imagen guardada en: $ImagePath" "OK"
+        } catch {
+            Write-Log "No se pudo guardar en Windows folder: $($_.Exception.Message)" "WARN"
+        }
+
+        # Fallback: guardar en ProgramData si fallo lo anterior
+        if (-not $ImageSaved) {
+            try {
+                $LockScreenPath = "C:\ProgramData\HCG\LockScreen"
+                if (-not (Test-Path $LockScreenPath)) {
+                    New-Item -ItemType Directory -Path $LockScreenPath -Force -ErrorAction Stop | Out-Null
+                }
+                $ImagePath = "$LockScreenPath\LockScreen_$NumInventario.jpg"
+                $Bmp.Save($ImagePath, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+                $ImageSaved = $true
+                Write-Log "Imagen guardada en ubicacion alternativa: $ImagePath" "OK"
+            } catch {
+                Write-Log "No se pudo guardar imagen: $($_.Exception.Message)" "ERROR"
+            }
+        }
+
+        # Liberar recursos GDI+
+        try { $Gfx.Dispose() } catch {}
+        try { $Bmp.Dispose() } catch {}
+
+        if (-not $ImageSaved -or -not $ImagePath) {
+            Write-Log "No se pudo generar el fondo de bloqueo" "ERROR"
+            return
+        }
 
         Write-Log "Imagen generada: $($Paleta.Nombre) (Estilo $Estilo)" "OK"
 
-        # Aplicar como fondo de pantalla de bloqueo via registro
-        $RegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization"
-        if (-not (Test-Path $RegPath)) { New-Item -Path $RegPath -Force | Out-Null }
-        Set-ItemProperty -Path $RegPath -Name "LockScreenImage" -Value $ImagePath -Type String
-        Set-ItemProperty -Path $RegPath -Name "NoChangingLockScreen" -Value 1 -Type DWord
+        # Aplicar como fondo de pantalla de bloqueo via registro (requiere admin)
+        try {
+            $RegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization"
+            if (-not (Test-Path $RegPath)) { New-Item -Path $RegPath -Force -ErrorAction Stop | Out-Null }
+            Set-ItemProperty -Path $RegPath -Name "LockScreenImage" -Value $ImagePath -Type String -ErrorAction Stop
+            Set-ItemProperty -Path $RegPath -Name "NoChangingLockScreen" -Value 1 -Type DWord -ErrorAction Stop
+            Write-Log "Registro Policies configurado" "OK"
+        } catch {
+            Write-Log "No se pudo configurar registro Policies: $($_.Exception.Message)" "WARN"
+        }
 
         # Tambien configurar via PersonalizationCSP (Windows 10/11)
-        $CSPPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP"
-        if (-not (Test-Path $CSPPath)) { New-Item -Path $CSPPath -Force | Out-Null }
-        Set-ItemProperty -Path $CSPPath -Name "LockScreenImagePath" -Value $ImagePath -Type String
-        Set-ItemProperty -Path $CSPPath -Name "LockScreenImageStatus" -Value 1 -Type DWord
+        try {
+            $CSPPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP"
+            if (-not (Test-Path $CSPPath)) { New-Item -Path $CSPPath -Force -ErrorAction Stop | Out-Null }
+            Set-ItemProperty -Path $CSPPath -Name "LockScreenImagePath" -Value $ImagePath -Type String -ErrorAction Stop
+            Set-ItemProperty -Path $CSPPath -Name "LockScreenImageStatus" -Value 1 -Type DWord -ErrorAction Stop
+            Write-Log "Registro PersonalizationCSP configurado" "OK"
+        } catch {
+            Write-Log "No se pudo configurar registro CSP: $($_.Exception.Message)" "WARN"
+        }
 
         Write-Log "Fondo de bloqueo aplicado: $($Paleta.Nombre)" "OK"
         $Script:SoftwareInstalado += "Lock Screen personalizado"
 
     } catch {
+        # Asegurar limpieza de recursos GDI+ en caso de error
+        try { if ($Gfx) { $Gfx.Dispose() } } catch {}
+        try { if ($Bmp) { $Bmp.Dispose() } } catch {}
         Write-Log "Error al generar fondo de bloqueo: $($_.Exception.Message)" "WARN"
     }
 }
@@ -2477,7 +2540,8 @@ function Verify-Configuracion {
 
     # --- Fondo de bloqueo ---
     $LockScreenHCG = "C:\Windows\Web\Wallpaper\HCG\LockScreen_$NumInventario.jpg"
-    if (Test-Path $LockScreenHCG) {
+    $LockScreenAlt = "C:\ProgramData\HCG\LockScreen\LockScreen_$NumInventario.jpg"
+    if ((Test-Path $LockScreenHCG) -or (Test-Path $LockScreenAlt)) {
         $Checks += @{ Status = "OK"; Msg = "Fondo de pantalla de bloqueo generado" }
     } else {
         $Checks += @{ Status = "WARN"; Msg = "Fondo de pantalla de bloqueo NO encontrado" }
