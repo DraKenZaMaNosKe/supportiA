@@ -1869,29 +1869,19 @@ function Add-DedalusSyncStartup {
         Write-Log "Archivos Dedalus desbloqueados (sin ventana de seguridad)" "OK"
 
         # =====================================================================
-        # CREAR SCRIPT VISUAL DE SINCRONIZACION CON EFECTOS
+        # CREAR SCRIPT VISUAL DE SINCRONIZACION - VERSION SIMPLE Y VISIBLE
         # =====================================================================
         $SyncVisualScript = "C:\Dedalus\HCG_SyncVisual.ps1"
         $SyncVisualContent = @'
 # =============================================================================
-# HCG - SINCRONIZADOR VISUAL DE EXPEDIENTE CLINICO
+# HCG - SINCRONIZADOR DE EXPEDIENTE CLINICO
 # =============================================================================
 # Hospital Civil de Guadalajara - Coordinacion General de Informatica
-# Sincroniza archivos de Dedalus/xHIS con efectos visuales y sonidos
+# Version simplificada: muestra el proceso de sincronizacion VISIBLE
 # =============================================================================
 
 $Host.UI.RawUI.WindowTitle = "HCG - Sincronizando Expediente Clinico"
 $ErrorActionPreference = "SilentlyContinue"
-
-# --- Configuracion de la ventana ---
-try {
-    $Host.UI.RawUI.BackgroundColor = "DarkBlue"
-    $Host.UI.RawUI.ForegroundColor = "White"
-    # Intentar ajustar tamano de ventana
-    $Host.UI.RawUI.WindowSize = New-Object System.Management.Automation.Host.Size(70, 25)
-    $Host.UI.RawUI.BufferSize = New-Object System.Management.Automation.Host.Size(70, 100)
-    Clear-Host
-} catch { Clear-Host }
 
 # --- Funcion para reproducir melodias ---
 function Play-Melody {
@@ -1899,204 +1889,122 @@ function Play-Melody {
     try {
         switch ($Type) {
             "start" {
-                # Melodia de inicio: acordes ascendentes amigables
-                [Console]::Beep(523, 150)  # Do
-                Start-Sleep -Milliseconds 50
-                [Console]::Beep(659, 150)  # Mi
-                Start-Sleep -Milliseconds 50
-                [Console]::Beep(784, 200)  # Sol
+                [Console]::Beep(523, 150); Start-Sleep -Milliseconds 50
+                [Console]::Beep(659, 150); Start-Sleep -Milliseconds 50
+                [Console]::Beep(784, 200)
             }
             "success" {
-                # Melodia de exito: fanfarria corta
-                [Console]::Beep(784, 150)  # Sol
-                Start-Sleep -Milliseconds 30
-                [Console]::Beep(988, 150)  # Si
-                Start-Sleep -Milliseconds 30
-                [Console]::Beep(1175, 300) # Re alto
+                [Console]::Beep(784, 150); Start-Sleep -Milliseconds 30
+                [Console]::Beep(988, 150); Start-Sleep -Milliseconds 30
+                [Console]::Beep(1175, 300)
             }
             "error" {
-                # Tono de alerta
-                [Console]::Beep(300, 400)
-                Start-Sleep -Milliseconds 100
+                [Console]::Beep(300, 400); Start-Sleep -Milliseconds 100
                 [Console]::Beep(300, 400)
             }
         }
     } catch {}
 }
 
-# --- Funcion para mostrar barra de progreso animada ---
-function Show-AnimatedProgress {
-    param([int]$Percent, [string]$Status)
-    $Width = 40
-    $Filled = [math]::Floor($Width * $Percent / 100)
-    $Empty = $Width - $Filled
+# --- Limpiar y mostrar header ---
+Clear-Host
+Write-Host ""
+Write-Host "  ============================================================" -ForegroundColor Cyan
+Write-Host "       HOSPITAL CIVIL DE GUADALAJARA" -ForegroundColor White
+Write-Host "       Coordinacion General de Informatica" -ForegroundColor Gray
+Write-Host "  ============================================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "       x   x  III   SSS      v   v   666" -ForegroundColor Yellow
+Write-Host "        x x    I   S          v v   6" -ForegroundColor Yellow
+Write-Host "         x     I    SSS        v    6666" -ForegroundColor Yellow
+Write-Host "        x x    I       S       v    6   6" -ForegroundColor Yellow
+Write-Host "       x   x  III  SSS         v     666" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "  ============================================================" -ForegroundColor Cyan
+Write-Host "       SINCRONIZACION DE EXPEDIENTE CLINICO" -ForegroundColor Green
+Write-Host "  ============================================================" -ForegroundColor Cyan
+Write-Host ""
 
-    $Bar = ""
-    for ($i = 0; $i -lt $Filled; $i++) { $Bar += [char]0x2588 }  # Bloque solido
-    for ($i = 0; $i -lt $Empty; $i++) { $Bar += [char]0x2591 }   # Bloque claro
-
-    $Color = if ($Percent -lt 30) { "Yellow" } elseif ($Percent -lt 70) { "Cyan" } else { "Green" }
-
-    Write-Host "`r  [" -NoNewline
-    Write-Host $Bar -ForegroundColor $Color -NoNewline
-    Write-Host "] $Percent%" -NoNewline
-    Write-Host "   " -NoNewline  # Limpiar caracteres residuales
-}
-
-# --- ASCII Art Header ---
-function Show-Header {
-    Write-Host ""
-    Write-Host "  ╔══════════════════════════════════════════════════════════════╗" -ForegroundColor DarkCyan
-    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
-    Write-Host "      HOSPITAL CIVIL DE GUADALAJARA                        " -ForegroundColor White -NoNewline
-    Write-Host "║" -ForegroundColor DarkCyan
-    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
-    Write-Host "      Coordinacion General de Informatica                  " -ForegroundColor Gray -NoNewline
-    Write-Host "║" -ForegroundColor DarkCyan
-    Write-Host "  ╠══════════════════════════════════════════════════════════════╣" -ForegroundColor DarkCyan
-    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
-    Write-Host "                                                              " -NoNewline
-    Write-Host "║" -ForegroundColor DarkCyan
-    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
-    Write-Host "       ███████╗██╗  ██╗██╗███████╗    ██╗   ██╗ ██████╗       " -ForegroundColor Yellow -NoNewline
-    Write-Host "║" -ForegroundColor DarkCyan
-    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
-    Write-Host "       ╚══███╔╝██║  ██║██║██╔════╝    ██║   ██║██╔════╝       " -ForegroundColor Yellow -NoNewline
-    Write-Host "║" -ForegroundColor DarkCyan
-    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
-    Write-Host "         ███╔╝ ███████║██║███████╗    ██║   ██║███████╗       " -ForegroundColor Yellow -NoNewline
-    Write-Host "║" -ForegroundColor DarkCyan
-    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
-    Write-Host "        ███╔╝  ██╔══██║██║╚════██║    ╚██╗ ██╔╝██╔═══██╗      " -ForegroundColor Yellow -NoNewline
-    Write-Host "║" -ForegroundColor DarkCyan
-    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
-    Write-Host "       ███████╗██║  ██║██║███████║     ╚████╔╝ ╚██████╔╝      " -ForegroundColor Yellow -NoNewline
-    Write-Host "║" -ForegroundColor DarkCyan
-    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
-    Write-Host "       ╚══════╝╚═╝  ╚═╝╚═╝╚══════╝      ╚═══╝   ╚═════╝       " -ForegroundColor Yellow -NoNewline
-    Write-Host "║" -ForegroundColor DarkCyan
-    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
-    Write-Host "                                                              " -NoNewline
-    Write-Host "║" -ForegroundColor DarkCyan
-    Write-Host "  ╠══════════════════════════════════════════════════════════════╣" -ForegroundColor DarkCyan
-    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
-    Write-Host "          SINCRONIZACION DE EXPEDIENTE CLINICO                " -ForegroundColor Cyan -NoNewline
-    Write-Host "║" -ForegroundColor DarkCyan
-    Write-Host "  ╚══════════════════════════════════════════════════════════════╝" -ForegroundColor DarkCyan
-    Write-Host ""
-}
-
-# --- Mostrar estado ---
-function Show-Status {
-    param([string]$Message, [string]$Type = "info")
-    $Icon = switch ($Type) {
-        "info"    { "[*]"; "Cyan" }
-        "ok"      { "[+]"; "Green" }
-        "warn"    { "[!]"; "Yellow" }
-        "error"   { "[X]"; "Red" }
-        "sync"    { "[~]"; "Magenta" }
-        default   { "[>]"; "White" }
-    }
-    Write-Host "  $($Icon[0]) " -ForegroundColor $Icon[1] -NoNewline
-    Write-Host $Message -ForegroundColor White
-}
-
-# === INICIO DE SINCRONIZACION ===
-Show-Header
+# --- Sonido de inicio ---
 Play-Melody -Type "start"
 
-Write-Host ""
-Show-Status "Iniciando sincronizacion..." "info"
-Show-Status "Fecha: $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')" "info"
+Write-Host "  [*] Fecha: $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')" -ForegroundColor Cyan
 Write-Host ""
 
-# Verificar conexion de red
+# --- Verificar conexion de red ---
+Write-Host "  [*] Verificando conexion al servidor..." -ForegroundColor Cyan
 $NetworkOK = Test-Connection -ComputerName "10.2.1.17" -Count 1 -Quiet -ErrorAction SilentlyContinue
 if (-not $NetworkOK) {
-    Show-Status "No se detecta conexion al servidor" "warn"
-    Show-Status "Reintentando en 5 segundos..." "info"
-    Start-Sleep -Seconds 5
+    Write-Host "  [!] No se detecta conexion, reintentando..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 3
     $NetworkOK = Test-Connection -ComputerName "10.2.1.17" -Count 1 -Quiet -ErrorAction SilentlyContinue
 }
 
 if (-not $NetworkOK) {
-    Show-Status "Sin conexion al servidor de Dedalus" "error"
-    Show-Status "La sincronizacion se ejecutara cuando haya red" "warn"
+    Write-Host ""
+    Write-Host "  [X] ERROR: Sin conexion al servidor de Dedalus" -ForegroundColor Red
+    Write-Host "  [!] Verifique la conexion de red e intente de nuevo" -ForegroundColor Yellow
     Play-Melody -Type "error"
     Write-Host ""
-    Write-Host "  Cerrando en 5 segundos..." -ForegroundColor Gray
-    Start-Sleep -Seconds 5
+    Write-Host "  Presione cualquier tecla para cerrar..." -ForegroundColor Gray
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
     exit
 }
 
-Show-Status "Conexion al servidor verificada" "ok"
+Write-Host "  [+] Conexion al servidor OK" -ForegroundColor Green
 Write-Host ""
 
-# Simulacion de progreso mientras se ejecuta el sync
+# --- Ejecutar sincronizacion VISIBLE en la MISMA ventana ---
 $SyncBatPath = "C:\Dedalus\sync_xhis6_startup.bat"
 
 if (Test-Path $SyncBatPath) {
-    Show-Status "Ejecutando sincronizacion de archivos..." "sync"
+    Write-Host "  ============================================================" -ForegroundColor Magenta
+    Write-Host "       EJECUTANDO SINCRONIZACION - NO CIERRE ESTA VENTANA" -ForegroundColor White
+    Write-Host "  ============================================================" -ForegroundColor Magenta
+    Write-Host ""
+    Write-Host "  Salida del proceso de sincronizacion:" -ForegroundColor Gray
+    Write-Host "  ------------------------------------------------------------" -ForegroundColor DarkGray
     Write-Host ""
 
-    # Iniciar el proceso de sync en background
-    $SyncProcess = Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$SyncBatPath`"" -WorkingDirectory "C:\Dedalus" -WindowStyle Hidden -PassThru
-
-    # Animacion de progreso mientras se ejecuta
-    $Progress = 0
-    $Modules = @("xHIS v6", "Configuraciones", "Recursos", "Base de datos local", "Finalizando")
-    $ModuleIndex = 0
-
-    while (-not $SyncProcess.HasExited) {
-        if ($Progress -lt 95) {
-            $Progress += Get-Random -Minimum 1 -Maximum 5
-            if ($Progress -gt 95) { $Progress = 95 }
-        }
-
-        # Cambiar mensaje cada cierto progreso
-        if ($Progress -gt ($ModuleIndex + 1) * 20 -and $ModuleIndex -lt $Modules.Count - 1) {
-            $ModuleIndex++
-        }
-
-        Show-AnimatedProgress -Percent $Progress -Status $Modules[$ModuleIndex]
-        Write-Host ""
-        Write-Host "  Sincronizando: $($Modules[$ModuleIndex])..." -ForegroundColor Gray
-
-        # Mover cursor arriba para sobrescribir
-        [Console]::SetCursorPosition(0, [Console]::CursorTop - 2)
-
-        Start-Sleep -Milliseconds 500
+    # Ejecutar el .bat en la MISMA ventana de PowerShell
+    # Esto muestra toda la salida al usuario
+    Push-Location "C:\Dedalus"
+    try {
+        & cmd.exe /c "$SyncBatPath"
+        $ExitCode = $LASTEXITCODE
+    } catch {
+        $ExitCode = 1
     }
+    Pop-Location
 
-    # Completar al 100%
-    Show-AnimatedProgress -Percent 100 -Status "Completado"
     Write-Host ""
-    Write-Host ""
+    Write-Host "  ------------------------------------------------------------" -ForegroundColor DarkGray
 
-    # Verificar resultado
-    if ($SyncProcess.ExitCode -eq 0 -or $SyncProcess.ExitCode -eq $null) {
+    # --- Verificar resultado ---
+    if ($ExitCode -eq 0 -or $ExitCode -eq $null) {
         Write-Host ""
-        Show-Status "Sincronizacion completada exitosamente" "ok"
+        Write-Host "  ============================================================" -ForegroundColor Green
+        Write-Host "       SINCRONIZACION COMPLETADA EXITOSAMENTE" -ForegroundColor Green
+        Write-Host "       El expediente clinico esta listo para usarse" -ForegroundColor White
+        Write-Host "  ============================================================" -ForegroundColor Green
         Play-Melody -Type "success"
     } else {
         Write-Host ""
-        Show-Status "Sincronizacion completada con advertencias" "warn"
+        Write-Host "  ============================================================" -ForegroundColor Yellow
+        Write-Host "       SINCRONIZACION COMPLETADA" -ForegroundColor Yellow
+        Write-Host "       (Codigo: $ExitCode - puede ser normal)" -ForegroundColor Gray
+        Write-Host "  ============================================================" -ForegroundColor Yellow
         Play-Melody -Type "success"
     }
 } else {
-    Show-Status "No se encontro el archivo de sincronizacion" "error"
+    Write-Host "  [X] ERROR: No se encontro el archivo de sincronizacion" -ForegroundColor Red
+    Write-Host "  [!] Ruta esperada: $SyncBatPath" -ForegroundColor Yellow
     Play-Melody -Type "error"
 }
 
 Write-Host ""
-Write-Host "  ╔══════════════════════════════════════════════════════════════╗" -ForegroundColor DarkGreen
-Write-Host "  ║" -ForegroundColor DarkGreen -NoNewline
-Write-Host "  El expediente clinico esta listo para usarse               " -ForegroundColor Green -NoNewline
-Write-Host "║" -ForegroundColor DarkGreen
-Write-Host "  ╚══════════════════════════════════════════════════════════════╝" -ForegroundColor DarkGreen
-Write-Host ""
-Write-Host "  Esta ventana se cerrara automaticamente en 4 segundos..." -ForegroundColor Gray
-Start-Sleep -Seconds 4
+Write-Host "  Esta ventana se cerrara en 5 segundos..." -ForegroundColor Gray
+Start-Sleep -Seconds 5
 '@
 
         # Guardar el script visual
