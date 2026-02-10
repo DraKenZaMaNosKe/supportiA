@@ -297,6 +297,17 @@ function Create-TaskbarShortcut {
     return $ShortcutPath
 }
 
+# Obtiene el nombre del grupo "Users/Usuarios" independiente del idioma de Windows
+function Get-UsersGroupName {
+    try {
+        # SID S-1-5-32-545 = BUILTIN\Users (funciona en cualquier idioma)
+        $UsersSID = New-Object System.Security.Principal.SecurityIdentifier("S-1-5-32-545")
+        return $UsersSID.Translate([System.Security.Principal.NTAccount]).Value
+    } catch {
+        return "Users"  # Fallback
+    }
+}
+
 # Crea la carpeta C:\HCG_Logs con permisos para todos los usuarios
 function Initialize-HCGLogsFolder {
     $LogsFolder = "C:\HCG_Logs"
@@ -305,9 +316,10 @@ function Initialize-HCGLogsFolder {
     }
     # Establecer permisos para que todos los usuarios puedan leer y ejecutar
     try {
+        $UsersGroup = Get-UsersGroupName
         $Acl = Get-Acl $LogsFolder
         $Rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
-            "Users", "ReadAndExecute", "ContainerInherit,ObjectInherit", "None", "Allow")
+            $UsersGroup, "ReadAndExecute", "ContainerInherit,ObjectInherit", "None", "Allow")
         $Acl.SetAccessRule($Rule)
         Set-Acl -Path $LogsFolder -AclObject $Acl -ErrorAction SilentlyContinue
     } catch {}
@@ -339,8 +351,9 @@ Set objShell = Nothing
 
     # Establecer permisos para que todos los usuarios puedan ejecutar el VBS
     try {
+        $UsersGroup = Get-UsersGroupName
         $Acl = Get-Acl $VbsPath
-        $Rule = New-Object System.Security.AccessControl.FileSystemAccessRule("Users", "ReadAndExecute", "Allow")
+        $Rule = New-Object System.Security.AccessControl.FileSystemAccessRule($UsersGroup, "ReadAndExecute", "Allow")
         $Acl.SetAccessRule($Rule)
         Set-Acl -Path $VbsPath -AclObject $Acl -ErrorAction SilentlyContinue
     } catch {}
@@ -2093,10 +2106,13 @@ Start-Sleep -Seconds 4
         Unblock-File -Path $SyncVisualScript -ErrorAction SilentlyContinue
 
         # Establecer permisos para que todos los usuarios puedan ejecutar
-        $Acl = Get-Acl $SyncVisualScript
-        $Rule = New-Object System.Security.AccessControl.FileSystemAccessRule("Users", "ReadAndExecute", "Allow")
-        $Acl.SetAccessRule($Rule)
-        Set-Acl -Path $SyncVisualScript -AclObject $Acl -ErrorAction SilentlyContinue
+        try {
+            $UsersGroup = Get-UsersGroupName
+            $Acl = Get-Acl $SyncVisualScript
+            $Rule = New-Object System.Security.AccessControl.FileSystemAccessRule($UsersGroup, "ReadAndExecute", "Allow")
+            $Acl.SetAccessRule($Rule)
+            Set-Acl -Path $SyncVisualScript -AclObject $Acl -ErrorAction SilentlyContinue
+        } catch {}
 
         Write-Log "Script visual de sincronizacion creado: $SyncVisualScript" "OK"
 
