@@ -297,6 +297,23 @@ function Create-TaskbarShortcut {
     return $ShortcutPath
 }
 
+# Crea la carpeta C:\HCG_Logs con permisos para todos los usuarios
+function Initialize-HCGLogsFolder {
+    $LogsFolder = "C:\HCG_Logs"
+    if (-not (Test-Path $LogsFolder)) {
+        New-Item -ItemType Directory -Path $LogsFolder -Force | Out-Null
+    }
+    # Establecer permisos para que todos los usuarios puedan leer y ejecutar
+    try {
+        $Acl = Get-Acl $LogsFolder
+        $Rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+            "Users", "ReadAndExecute", "ContainerInherit,ObjectInherit", "None", "Allow")
+        $Acl.SetAccessRule($Rule)
+        Set-Acl -Path $LogsFolder -AclObject $Acl -ErrorAction SilentlyContinue
+    } catch {}
+    return $LogsFolder
+}
+
 # Crea un script VBS que lanza PowerShell de forma completamente oculta
 # Esto evita el destello de ventana que ocurre con Task Scheduler + PowerShell -WindowStyle Hidden
 function New-HiddenLauncher {
@@ -319,6 +336,15 @@ Set objShell = Nothing
 "@
 
     $VbsContent | Out-File -FilePath $VbsPath -Encoding ASCII -Force
+
+    # Establecer permisos para que todos los usuarios puedan ejecutar el VBS
+    try {
+        $Acl = Get-Acl $VbsPath
+        $Rule = New-Object System.Security.AccessControl.FileSystemAccessRule("Users", "ReadAndExecute", "Allow")
+        $Acl.SetAccessRule($Rule)
+        Set-Acl -Path $VbsPath -AclObject $Acl -ErrorAction SilentlyContinue
+    } catch {}
+
     return $VbsPath
 }
 
@@ -728,7 +754,7 @@ foreach ($folder in @("C:\Dedalus\EscritorioClinico", "C:\Dedalus\xFARMA", "C:\D
     }
 }
 '@
-    if (-not (Test-Path "C:\HCG_Logs")) { New-Item -ItemType Directory -Path "C:\HCG_Logs" -Force | Out-Null }
+    Initialize-HCGLogsFolder | Out-Null
     $FirstLoginScript | Out-File -FilePath "C:\HCG_Logs\setup_firstlogin.ps1" -Encoding UTF8 -Force
 
     # Configurar perfil por defecto para heredar configuracion al nuevo usuario
@@ -1815,13 +1841,13 @@ function Add-DedalusSyncStartup {
         # Asegurar que la carpeta Dedalus existe
         if (-not (Test-Path "C:\Dedalus")) { New-Item -ItemType Directory -Path "C:\Dedalus" -Force | Out-Null }
 
-        # Copiar el archivo al equipo local
-        $LocalSync = "C:\Dedalus\sync_xhis6_startup.bat"
-        Copy-Item -Path $SyncBat -Destination $LocalSync -Force
+        # Copiar el archivo .bat original al equipo local
+        $LocalSyncBat = "C:\Dedalus\sync_xhis6_startup.bat"
+        Copy-Item -Path $SyncBat -Destination $LocalSyncBat -Force
 
         # Desbloquear archivo para evitar ventana de seguridad "Open File"
-        Unblock-File -Path $LocalSync -ErrorAction SilentlyContinue
-        Remove-Item -Path $LocalSync -Stream Zone.Identifier -ErrorAction SilentlyContinue
+        Unblock-File -Path $LocalSyncBat -ErrorAction SilentlyContinue
+        Remove-Item -Path $LocalSyncBat -Stream Zone.Identifier -ErrorAction SilentlyContinue
 
         # Desbloquear todos los archivos de Dedalus
         Get-ChildItem "C:\Dedalus" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
@@ -1829,20 +1855,268 @@ function Add-DedalusSyncStartup {
         }
         Write-Log "Archivos Dedalus desbloqueados (sin ventana de seguridad)" "OK"
 
-        # Crear acceso directo en la carpeta de Inicio para todos los usuarios
-        # NOTA: La ventana de sincronizacion SE DEJA VISIBLE para que el usuario sepa que esta pasando
+        # =====================================================================
+        # CREAR SCRIPT VISUAL DE SINCRONIZACION CON EFECTOS
+        # =====================================================================
+        $SyncVisualScript = "C:\Dedalus\HCG_SyncVisual.ps1"
+        $SyncVisualContent = @'
+# =============================================================================
+# HCG - SINCRONIZADOR VISUAL DE EXPEDIENTE CLINICO
+# =============================================================================
+# Hospital Civil de Guadalajara - Coordinacion General de Informatica
+# Sincroniza archivos de Dedalus/xHIS con efectos visuales y sonidos
+# =============================================================================
+
+$Host.UI.RawUI.WindowTitle = "HCG - Sincronizando Expediente Clinico"
+$ErrorActionPreference = "SilentlyContinue"
+
+# --- Configuracion de la ventana ---
+try {
+    $Host.UI.RawUI.BackgroundColor = "DarkBlue"
+    $Host.UI.RawUI.ForegroundColor = "White"
+    # Intentar ajustar tamano de ventana
+    $Host.UI.RawUI.WindowSize = New-Object System.Management.Automation.Host.Size(70, 25)
+    $Host.UI.RawUI.BufferSize = New-Object System.Management.Automation.Host.Size(70, 100)
+    Clear-Host
+} catch { Clear-Host }
+
+# --- Funcion para reproducir melodias ---
+function Play-Melody {
+    param([string]$Type)
+    try {
+        switch ($Type) {
+            "start" {
+                # Melodia de inicio: acordes ascendentes amigables
+                [Console]::Beep(523, 150)  # Do
+                Start-Sleep -Milliseconds 50
+                [Console]::Beep(659, 150)  # Mi
+                Start-Sleep -Milliseconds 50
+                [Console]::Beep(784, 200)  # Sol
+            }
+            "success" {
+                # Melodia de exito: fanfarria corta
+                [Console]::Beep(784, 150)  # Sol
+                Start-Sleep -Milliseconds 30
+                [Console]::Beep(988, 150)  # Si
+                Start-Sleep -Milliseconds 30
+                [Console]::Beep(1175, 300) # Re alto
+            }
+            "error" {
+                # Tono de alerta
+                [Console]::Beep(300, 400)
+                Start-Sleep -Milliseconds 100
+                [Console]::Beep(300, 400)
+            }
+        }
+    } catch {}
+}
+
+# --- Funcion para mostrar barra de progreso animada ---
+function Show-AnimatedProgress {
+    param([int]$Percent, [string]$Status)
+    $Width = 40
+    $Filled = [math]::Floor($Width * $Percent / 100)
+    $Empty = $Width - $Filled
+
+    $Bar = ""
+    for ($i = 0; $i -lt $Filled; $i++) { $Bar += [char]0x2588 }  # Bloque solido
+    for ($i = 0; $i -lt $Empty; $i++) { $Bar += [char]0x2591 }   # Bloque claro
+
+    $Color = if ($Percent -lt 30) { "Yellow" } elseif ($Percent -lt 70) { "Cyan" } else { "Green" }
+
+    Write-Host "`r  [" -NoNewline
+    Write-Host $Bar -ForegroundColor $Color -NoNewline
+    Write-Host "] $Percent%" -NoNewline
+    Write-Host "   " -NoNewline  # Limpiar caracteres residuales
+}
+
+# --- ASCII Art Header ---
+function Show-Header {
+    Write-Host ""
+    Write-Host "  ╔══════════════════════════════════════════════════════════════╗" -ForegroundColor DarkCyan
+    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
+    Write-Host "      HOSPITAL CIVIL DE GUADALAJARA                        " -ForegroundColor White -NoNewline
+    Write-Host "║" -ForegroundColor DarkCyan
+    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
+    Write-Host "      Coordinacion General de Informatica                  " -ForegroundColor Gray -NoNewline
+    Write-Host "║" -ForegroundColor DarkCyan
+    Write-Host "  ╠══════════════════════════════════════════════════════════════╣" -ForegroundColor DarkCyan
+    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
+    Write-Host "                                                              " -NoNewline
+    Write-Host "║" -ForegroundColor DarkCyan
+    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
+    Write-Host "       ███████╗██╗  ██╗██╗███████╗    ██╗   ██╗ ██████╗       " -ForegroundColor Yellow -NoNewline
+    Write-Host "║" -ForegroundColor DarkCyan
+    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
+    Write-Host "       ╚══███╔╝██║  ██║██║██╔════╝    ██║   ██║██╔════╝       " -ForegroundColor Yellow -NoNewline
+    Write-Host "║" -ForegroundColor DarkCyan
+    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
+    Write-Host "         ███╔╝ ███████║██║███████╗    ██║   ██║███████╗       " -ForegroundColor Yellow -NoNewline
+    Write-Host "║" -ForegroundColor DarkCyan
+    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
+    Write-Host "        ███╔╝  ██╔══██║██║╚════██║    ╚██╗ ██╔╝██╔═══██╗      " -ForegroundColor Yellow -NoNewline
+    Write-Host "║" -ForegroundColor DarkCyan
+    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
+    Write-Host "       ███████╗██║  ██║██║███████║     ╚████╔╝ ╚██████╔╝      " -ForegroundColor Yellow -NoNewline
+    Write-Host "║" -ForegroundColor DarkCyan
+    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
+    Write-Host "       ╚══════╝╚═╝  ╚═╝╚═╝╚══════╝      ╚═══╝   ╚═════╝       " -ForegroundColor Yellow -NoNewline
+    Write-Host "║" -ForegroundColor DarkCyan
+    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
+    Write-Host "                                                              " -NoNewline
+    Write-Host "║" -ForegroundColor DarkCyan
+    Write-Host "  ╠══════════════════════════════════════════════════════════════╣" -ForegroundColor DarkCyan
+    Write-Host "  ║" -ForegroundColor DarkCyan -NoNewline
+    Write-Host "          SINCRONIZACION DE EXPEDIENTE CLINICO                " -ForegroundColor Cyan -NoNewline
+    Write-Host "║" -ForegroundColor DarkCyan
+    Write-Host "  ╚══════════════════════════════════════════════════════════════╝" -ForegroundColor DarkCyan
+    Write-Host ""
+}
+
+# --- Mostrar estado ---
+function Show-Status {
+    param([string]$Message, [string]$Type = "info")
+    $Icon = switch ($Type) {
+        "info"    { "[*]"; "Cyan" }
+        "ok"      { "[+]"; "Green" }
+        "warn"    { "[!]"; "Yellow" }
+        "error"   { "[X]"; "Red" }
+        "sync"    { "[~]"; "Magenta" }
+        default   { "[>]"; "White" }
+    }
+    Write-Host "  $($Icon[0]) " -ForegroundColor $Icon[1] -NoNewline
+    Write-Host $Message -ForegroundColor White
+}
+
+# === INICIO DE SINCRONIZACION ===
+Show-Header
+Play-Melody -Type "start"
+
+Write-Host ""
+Show-Status "Iniciando sincronizacion..." "info"
+Show-Status "Fecha: $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')" "info"
+Write-Host ""
+
+# Verificar conexion de red
+$NetworkOK = Test-Connection -ComputerName "10.2.1.17" -Count 1 -Quiet -ErrorAction SilentlyContinue
+if (-not $NetworkOK) {
+    Show-Status "No se detecta conexion al servidor" "warn"
+    Show-Status "Reintentando en 5 segundos..." "info"
+    Start-Sleep -Seconds 5
+    $NetworkOK = Test-Connection -ComputerName "10.2.1.17" -Count 1 -Quiet -ErrorAction SilentlyContinue
+}
+
+if (-not $NetworkOK) {
+    Show-Status "Sin conexion al servidor de Dedalus" "error"
+    Show-Status "La sincronizacion se ejecutara cuando haya red" "warn"
+    Play-Melody -Type "error"
+    Write-Host ""
+    Write-Host "  Cerrando en 5 segundos..." -ForegroundColor Gray
+    Start-Sleep -Seconds 5
+    exit
+}
+
+Show-Status "Conexion al servidor verificada" "ok"
+Write-Host ""
+
+# Simulacion de progreso mientras se ejecuta el sync
+$SyncBatPath = "C:\Dedalus\sync_xhis6_startup.bat"
+
+if (Test-Path $SyncBatPath) {
+    Show-Status "Ejecutando sincronizacion de archivos..." "sync"
+    Write-Host ""
+
+    # Iniciar el proceso de sync en background
+    $SyncProcess = Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$SyncBatPath`"" -WorkingDirectory "C:\Dedalus" -WindowStyle Hidden -PassThru
+
+    # Animacion de progreso mientras se ejecuta
+    $Progress = 0
+    $Modules = @("xHIS v6", "Configuraciones", "Recursos", "Base de datos local", "Finalizando")
+    $ModuleIndex = 0
+
+    while (-not $SyncProcess.HasExited) {
+        if ($Progress -lt 95) {
+            $Progress += Get-Random -Minimum 1 -Maximum 5
+            if ($Progress -gt 95) { $Progress = 95 }
+        }
+
+        # Cambiar mensaje cada cierto progreso
+        if ($Progress -gt ($ModuleIndex + 1) * 20 -and $ModuleIndex -lt $Modules.Count - 1) {
+            $ModuleIndex++
+        }
+
+        Show-AnimatedProgress -Percent $Progress -Status $Modules[$ModuleIndex]
+        Write-Host ""
+        Write-Host "  Sincronizando: $($Modules[$ModuleIndex])..." -ForegroundColor Gray
+
+        # Mover cursor arriba para sobrescribir
+        [Console]::SetCursorPosition(0, [Console]::CursorTop - 2)
+
+        Start-Sleep -Milliseconds 500
+    }
+
+    # Completar al 100%
+    Show-AnimatedProgress -Percent 100 -Status "Completado"
+    Write-Host ""
+    Write-Host ""
+
+    # Verificar resultado
+    if ($SyncProcess.ExitCode -eq 0 -or $SyncProcess.ExitCode -eq $null) {
+        Write-Host ""
+        Show-Status "Sincronizacion completada exitosamente" "ok"
+        Play-Melody -Type "success"
+    } else {
+        Write-Host ""
+        Show-Status "Sincronizacion completada con advertencias" "warn"
+        Play-Melody -Type "success"
+    }
+} else {
+    Show-Status "No se encontro el archivo de sincronizacion" "error"
+    Play-Melody -Type "error"
+}
+
+Write-Host ""
+Write-Host "  ╔══════════════════════════════════════════════════════════════╗" -ForegroundColor DarkGreen
+Write-Host "  ║" -ForegroundColor DarkGreen -NoNewline
+Write-Host "  El expediente clinico esta listo para usarse               " -ForegroundColor Green -NoNewline
+Write-Host "║" -ForegroundColor DarkGreen
+Write-Host "  ╚══════════════════════════════════════════════════════════════╝" -ForegroundColor DarkGreen
+Write-Host ""
+Write-Host "  Esta ventana se cerrara automaticamente en 4 segundos..." -ForegroundColor Gray
+Start-Sleep -Seconds 4
+'@
+
+        # Guardar el script visual
+        $SyncVisualContent | Out-File -FilePath $SyncVisualScript -Encoding UTF8 -Force
+
+        # Desbloquear el script
+        Unblock-File -Path $SyncVisualScript -ErrorAction SilentlyContinue
+
+        # Establecer permisos para que todos los usuarios puedan ejecutar
+        $Acl = Get-Acl $SyncVisualScript
+        $Rule = New-Object System.Security.AccessControl.FileSystemAccessRule("Users", "ReadAndExecute", "Allow")
+        $Acl.SetAccessRule($Rule)
+        Set-Acl -Path $SyncVisualScript -AclObject $Acl -ErrorAction SilentlyContinue
+
+        Write-Log "Script visual de sincronizacion creado: $SyncVisualScript" "OK"
+
+        # =====================================================================
+        # CREAR ACCESO DIRECTO EN STARTUP
+        # =====================================================================
         $StartupFolder = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp"
         $ShortcutPath = "$StartupFolder\Dedalus Sync.lnk"
 
         $WshShell = New-Object -ComObject WScript.Shell
         $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
-        $Shortcut.TargetPath = $LocalSync
+        $Shortcut.TargetPath = "powershell.exe"
+        $Shortcut.Arguments = "-ExecutionPolicy Bypass -File `"$SyncVisualScript`""
         $Shortcut.WorkingDirectory = "C:\Dedalus"
-        $Shortcut.Description = "Sincronizador Dedalus Expediente Clinico - NO CERRAR"
+        $Shortcut.Description = "HCG - Sincronizador de Expediente Clinico"
+        $Shortcut.WindowStyle = 1  # Normal (visible)
         $Shortcut.Save()
 
-        Write-Log "Sincronizador agregado al inicio de Windows (ventana visible para el usuario)" "OK"
-        $Script:SoftwareInstalado += "Sync Dedalus"
+        Write-Log "Sincronizador visual agregado al inicio de Windows" "OK"
+        $Script:SoftwareInstalado += "Sync Dedalus Visual"
     } else {
         Write-Log "No se encontro sync_xhis6_startup.bat en: $RutaDedalus" "WARN"
     }
@@ -2071,7 +2345,7 @@ try {
 } catch { exit }
 '@
 
-    if (-not (Test-Path "C:\HCG_Logs")) { New-Item -ItemType Directory -Path "C:\HCG_Logs" -Force | Out-Null }
+    Initialize-HCGLogsFolder | Out-Null
     $ScriptContent | Out-File -FilePath $ScriptPath -Encoding UTF8 -Force
     Write-Log "Script de reporte de IP creado en $ScriptPath" "OK"
 
@@ -2259,7 +2533,7 @@ try {
 } catch { exit }
 '@
 
-    if (-not (Test-Path "C:\HCG_Logs")) { New-Item -ItemType Directory -Path "C:\HCG_Logs" -Force | Out-Null }
+    Initialize-HCGLogsFolder | Out-Null
     $ScriptContent | Out-File -FilePath $ScriptPath -Encoding UTF8 -Force
     Write-Log "Script de reporte de sistema creado en $ScriptPath" "OK"
 
@@ -2407,7 +2681,7 @@ try {
 } catch { exit }
 '@
 
-    if (-not (Test-Path "C:\HCG_Logs")) { New-Item -ItemType Directory -Path "C:\HCG_Logs" -Force | Out-Null }
+    Initialize-HCGLogsFolder | Out-Null
     $ScriptContent | Out-File -FilePath $ScriptPath -Encoding UTF8 -Force
     Write-Log "Script de diagnostico creado en $ScriptPath" "OK"
 
