@@ -297,6 +297,31 @@ function Create-TaskbarShortcut {
     return $ShortcutPath
 }
 
+# Crea un script VBS que lanza PowerShell de forma completamente oculta
+# Esto evita el destello de ventana que ocurre con Task Scheduler + PowerShell -WindowStyle Hidden
+function New-HiddenLauncher {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$PowerShellScriptPath,
+        [string]$VbsPath = ""
+    )
+
+    if (-not $VbsPath) {
+        $VbsPath = $PowerShellScriptPath -replace '\.ps1$', '_launcher.vbs'
+    }
+
+    $VbsContent = @"
+' Launcher oculto para $PowerShellScriptPath
+' Ejecuta PowerShell completamente invisible (sin destello de ventana)
+Set objShell = CreateObject("WScript.Shell")
+objShell.Run "powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -NonInteractive -File ""$PowerShellScriptPath""", 0, False
+Set objShell = Nothing
+"@
+
+    $VbsContent | Out-File -FilePath $VbsPath -Encoding ASCII -Force
+    return $VbsPath
+}
+
 function Get-DatosEquipo {
     $Bios = Get-WmiObject Win32_BIOS
     $MACEth = (Get-WmiObject Win32_NetworkAdapter | Where-Object { $_.NetConnectionID -eq "Ethernet" -and $_.MACAddress } | Select-Object -First 1).MACAddress -replace ":", ""
@@ -1805,6 +1830,7 @@ function Add-DedalusSyncStartup {
         Write-Log "Archivos Dedalus desbloqueados (sin ventana de seguridad)" "OK"
 
         # Crear acceso directo en la carpeta de Inicio para todos los usuarios
+        # NOTA: La ventana de sincronizacion SE DEJA VISIBLE para que el usuario sepa que esta pasando
         $StartupFolder = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp"
         $ShortcutPath = "$StartupFolder\Dedalus Sync.lnk"
 
@@ -1812,10 +1838,10 @@ function Add-DedalusSyncStartup {
         $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
         $Shortcut.TargetPath = $LocalSync
         $Shortcut.WorkingDirectory = "C:\Dedalus"
-        $Shortcut.Description = "Sincronizador Dedalus Expediente Clinico"
+        $Shortcut.Description = "Sincronizador Dedalus Expediente Clinico - NO CERRAR"
         $Shortcut.Save()
 
-        Write-Log "Sincronizador agregado al inicio de Windows" "OK"
+        Write-Log "Sincronizador agregado al inicio de Windows (ventana visible para el usuario)" "OK"
         $Script:SoftwareInstalado += "Sync Dedalus"
     } else {
         Write-Log "No se encontro sync_xhis6_startup.bat en: $RutaDedalus" "WARN"
@@ -2049,11 +2075,16 @@ try {
     $ScriptContent | Out-File -FilePath $ScriptPath -Encoding UTF8 -Force
     Write-Log "Script de reporte de IP creado en $ScriptPath" "OK"
 
+    # Crear launcher VBS para ejecucion completamente oculta
+    $VbsLauncher = New-HiddenLauncher -PowerShellScriptPath $ScriptPath
+    Write-Log "Launcher VBS creado: $VbsLauncher" "OK"
+
     # Crear tarea programada: cada 3 horas + al iniciar sesion
     $TaskName = "HCG_ReporteIP"
 
     try {
-        $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -NonInteractive -File `"$ScriptPath`""
+        # Usar wscript.exe con VBS para evitar cualquier ventana visible
+        $Action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$VbsLauncher`""
 
         # Trigger 1: Al iniciar sesion (cualquier usuario), delay 60 segundos
         $TriggerLogon = New-ScheduledTaskTrigger -AtLogOn
@@ -2232,11 +2263,16 @@ try {
     $ScriptContent | Out-File -FilePath $ScriptPath -Encoding UTF8 -Force
     Write-Log "Script de reporte de sistema creado en $ScriptPath" "OK"
 
+    # Crear launcher VBS para ejecucion completamente oculta
+    $VbsLauncher = New-HiddenLauncher -PowerShellScriptPath $ScriptPath
+    Write-Log "Launcher VBS creado: $VbsLauncher" "OK"
+
     # Crear tarea programada: solo al iniciar sesion, delay 2 minutos
     $TaskName = "HCG_ReporteSistema"
 
     try {
-        $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -NonInteractive -File `"$ScriptPath`""
+        # Usar wscript.exe con VBS para evitar cualquier ventana visible
+        $Action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$VbsLauncher`""
 
         # Trigger: Al iniciar sesion (cualquier usuario), delay 120 segundos
         $TriggerLogon = New-ScheduledTaskTrigger -AtLogOn
@@ -2375,11 +2411,16 @@ try {
     $ScriptContent | Out-File -FilePath $ScriptPath -Encoding UTF8 -Force
     Write-Log "Script de diagnostico creado en $ScriptPath" "OK"
 
+    # Crear launcher VBS para ejecucion completamente oculta
+    $VbsLauncher = New-HiddenLauncher -PowerShellScriptPath $ScriptPath
+    Write-Log "Launcher VBS creado: $VbsLauncher" "OK"
+
     # Crear tarea programada: cada 4 horas + al iniciar sesion (delay 3 min)
     $TaskName = "HCG_ReporteDiagnostico"
 
     try {
-        $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -NonInteractive -File `"$ScriptPath`""
+        # Usar wscript.exe con VBS para evitar cualquier ventana visible
+        $Action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$VbsLauncher`""
 
         # Trigger 1: Al iniciar sesion (cualquier usuario), delay 180 segundos
         $TriggerLogon = New-ScheduledTaskTrigger -AtLogOn
