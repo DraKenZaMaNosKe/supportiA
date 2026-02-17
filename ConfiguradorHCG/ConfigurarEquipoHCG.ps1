@@ -486,6 +486,105 @@ function Play-VictorySound {
     } catch {}
 }
 
+function Play-PhoenixMelody {
+    # Melodia del Ave Fenix - Ikki (epica pero suave)
+    # Inspirada en "Phoenix Ikki Theme" - notas ascendentes como el renacimiento
+    try {
+        # Intro suave - el fenix despierta
+        [Console]::Beep(330, 300)   # Mi - despertar
+        Start-Sleep -Milliseconds 100
+        [Console]::Beep(392, 300)   # Sol
+        [Console]::Beep(440, 400)   # La - ascenso
+        Start-Sleep -Milliseconds 150
+
+        # Crecimiento - las alas se abren
+        [Console]::Beep(523, 350)   # Do5 - fuerza
+        [Console]::Beep(587, 300)   # Re5
+        [Console]::Beep(659, 500)   # Mi5 - vuelo
+        Start-Sleep -Milliseconds 200
+
+        # Climax suave - el fenix renace
+        [Console]::Beep(784, 400)   # Sol5 - majestuoso
+        [Console]::Beep(880, 350)   # La5
+        [Console]::Beep(784, 300)   # Sol5 - descenso suave
+        [Console]::Beep(659, 600)   # Mi5 - paz
+        Start-Sleep -Milliseconds 300
+
+        # Final - alas extendidas
+        [Console]::Beep(523, 400)   # Do5
+        [Console]::Beep(659, 500)   # Mi5
+        [Console]::Beep(784, 800)   # Sol5 - sostenido final
+    } catch {}
+}
+
+function Show-PhoenixRebootCountdown {
+    param([int]$Seconds = 60)
+
+    Clear-Host
+
+    $phoenix = @'
+
+                           . - ~ ~ ~ - .
+                       . '       _      ' .
+                      /        .'         \
+                     /        /             \
+                    |        |   .-'''-.    |
+                    |        |  /   _   \   |
+                     \       | |   (_)   | /
+                      \      |  \       / /
+                       \      \  '-----' /
+                        \      '.     .'/
+                         \   .  '---'   /
+                          \ / \       / \
+                      .-'  |   '-----'   '.
+                    .'      \             /
+                   /     .-' '._     _.' '-.
+                  /    .'       '---'       \
+                 /   .'                       \
+                |  .'      A V E   F E N I X   '.
+                |.'                              \
+               .'     EL SISTEMA RENACERA...      '.
+              /                                     \
+             |      *  *  *  *  *  *  *  *  *  *     |
+              \                                     /
+               '.                                 .'
+                 ' .    Hospital Civil GDL    . '
+                    ' - . _   _ . - '
+
+'@
+
+    Write-Host $phoenix -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  ================================================================" -ForegroundColor Yellow
+    Write-Host "  |     REINICIO AUTOMATICO - ACTUALIZACIONES SE APLICARAN      |" -ForegroundColor Yellow
+    Write-Host "  |                 NO APAGUES EL EQUIPO                        |" -ForegroundColor Yellow
+    Write-Host "  ================================================================" -ForegroundColor Yellow
+    Write-Host ""
+
+    # Tocar melodia del Fenix
+    Play-PhoenixMelody
+
+    # Cuenta regresiva con beeps suaves
+    for ($i = $Seconds; $i -ge 1; $i--) {
+        $bar = "=" * [math]::Floor((($Seconds - $i) / $Seconds) * 40)
+        $space = " " * (40 - $bar.Length)
+
+        Write-Host "`r  [$bar$space] $i segundos para reiniciar...   " -NoNewline -ForegroundColor Cyan
+
+        # Beep cada 10 segundos, y cada segundo en los ultimos 5
+        if ($i -le 5 -or $i % 10 -eq 0) {
+            try { [Console]::Beep(600 + (($Seconds - $i) * 10), 100) } catch {}
+        }
+
+        Start-Sleep -Seconds 1
+    }
+
+    Write-Host ""
+    Write-Host ""
+    Write-Host "  *** EL FENIX RENACE - REINICIANDO AHORA ***" -ForegroundColor Red
+    Write-Host ""
+}
+
 function Show-ProgressCosmos {
     param([int]$Step, [int]$Total = 25)
     $Pct = [math]::Floor(($Step / $Total) * 100)
@@ -3759,6 +3858,13 @@ if (-not $EsWindows11) {
     Write-Host "  $Star Este equipo ya tiene Windows 11 (Build $WinBuild)" -ForegroundColor Green
 }
 
+# =============================================================================
+# REINICIO AUTOMATICO - AVE FENIX
+# =============================================================================
 Write-Host ""
-$R = Read-Host "  $Star Reiniciar ahora? (S/N)"
-if ($R -eq "S" -or $R -eq "s") { Restart-Computer -Force }
+Write-Host "  $Star Preparando reinicio automatico para aplicar actualizaciones..." -ForegroundColor Yellow
+Start-Sleep -Seconds 3
+
+# Mostrar cuenta regresiva del Fenix (60 segundos) y reiniciar
+Show-PhoenixRebootCountdown -Seconds 60
+Restart-Computer -Force
