@@ -10,6 +10,40 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     exit
 }
 
+# --- DESHABILITAR QUICKEDIT MODE (evita que el script se pause al hacer clic) ---
+# Esto previene que la consola entre en modo seleccion cuando el usuario hace clic
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public class ConsoleQuickEdit {
+    const uint ENABLE_QUICK_EDIT = 0x0040;
+    const uint ENABLE_EXTENDED_FLAGS = 0x0080;
+    const int STD_INPUT_HANDLE = -10;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern IntPtr GetStdHandle(int nStdHandle);
+
+    [DllImport("kernel32.dll")]
+    static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
+
+    [DllImport("kernel32.dll")]
+    static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
+
+    public static void Disable() {
+        IntPtr consoleHandle = GetStdHandle(STD_INPUT_HANDLE);
+        uint consoleMode;
+        if (GetConsoleMode(consoleHandle, out consoleMode)) {
+            consoleMode &= ~ENABLE_QUICK_EDIT;
+            consoleMode |= ENABLE_EXTENDED_FLAGS;
+            SetConsoleMode(consoleHandle, consoleMode);
+        }
+    }
+}
+"@ -ErrorAction SilentlyContinue
+
+try { [ConsoleQuickEdit]::Disable() } catch { }
+
 # --- CONFIGURACION ---
 $Servidor = "10.2.1.13"
 $Usuario = "2010201"
@@ -40,6 +74,257 @@ $Script:UsuarioOriginal = $env:USERNAME
 $Script:Departamento = "Soporte Tecnico - Ext. 54425"
 $Script:EsOPD = $false
 
+# =============================================================================
+# PEGASUS FANTASY - Notas de la melodia (Saint Seiya)
+# Cada paso completado toca la siguiente nota de la melodia
+# AUDIO WAV - Se reproduce por el dispositivo de audio predeterminado
+# =============================================================================
+
+# Generador de tonos WAV (audio real)
+Add-Type -TypeDefinition @"
+using System;
+using System.IO;
+using System.Media;
+
+public class PegasusWavPlayer {
+    public static void PlayTone(double frequency, int durationMs, double volume) {
+        if (frequency <= 0) return;
+
+        int sampleRate = 22050;
+        int samples = (int)(sampleRate * durationMs / 1000.0);
+
+        using (MemoryStream ms = new MemoryStream()) {
+            using (BinaryWriter bw = new BinaryWriter(ms)) {
+                // Escribir cabecera WAV
+                bw.Write(new char[] {'R','I','F','F'});
+                bw.Write(36 + samples * 2);
+                bw.Write(new char[] {'W','A','V','E'});
+                bw.Write(new char[] {'f','m','t',' '});
+                bw.Write(16);
+                bw.Write((short)1);
+                bw.Write((short)1);
+                bw.Write(sampleRate);
+                bw.Write(sampleRate * 2);
+                bw.Write((short)2);
+                bw.Write((short)16);
+                bw.Write(new char[] {'d','a','t','a'});
+                bw.Write(samples * 2);
+
+                // Generar onda senoidal con fade out
+                for (int i = 0; i < samples; i++) {
+                    double t = (double)i / sampleRate;
+                    double fadeOut = 1.0 - ((double)i / samples) * 0.3;
+                    short sample = (short)(Math.Sin(2 * Math.PI * frequency * t) * 32767 * volume * fadeOut);
+                    bw.Write(sample);
+                }
+
+                ms.Position = 0;
+                using (SoundPlayer sp = new SoundPlayer(ms)) {
+                    sp.PlaySync();
+                }
+            }
+        }
+    }
+}
+"@ -ReferencedAssemblies "System.dll" -ErrorAction SilentlyContinue
+
+$Script:PegasusNotas = @(
+    @{f=659; d=150},  # E5
+    @{f=659; d=150},  # E5
+    @{f=587; d=150},  # D5
+    @{f=659; d=250},  # E5
+    @{f=784; d=150},  # G5
+    @{f=784; d=150},  # G5
+    @{f=698; d=150},  # F5
+    @{f=659; d=250},  # E5
+    @{f=659; d=150},  # E5
+    @{f=659; d=150},  # E5
+    @{f=587; d=150},  # D5
+    @{f=659; d=200},  # E5
+    @{f=587; d=100},  # D5
+    @{f=523; d=100},  # C5
+    @{f=494; d=250},  # B4
+    @{f=440; d=150},  # A4
+    @{f=494; d=150},  # B4
+    @{f=523; d=150},  # C5
+    @{f=587; d=150},  # D5
+    @{f=659; d=400},  # E5 (nota final epica)
+    @{f=784; d=200},  # G5 (bonus)
+    @{f=880; d=300}   # A5 (final!)
+)
+$Script:PegasusIndex = 0
+$Script:AudioVolume = 0.25  # Volumen (0.0 a 1.0)
+
+# Funcion para tocar la siguiente nota de Pegasus Fantasy
+function Play-PegasusNote {
+    try {
+        if ($Script:PegasusIndex -lt $Script:PegasusNotas.Count) {
+            $nota = $Script:PegasusNotas[$Script:PegasusIndex]
+            [PegasusWavPlayer]::PlayTone($nota.f, $nota.d, $Script:AudioVolume)
+            $Script:PegasusIndex++
+        } else {
+            # Si ya termino la melodia, reiniciar para seguir tocando
+            $Script:PegasusIndex = 0
+            $nota = $Script:PegasusNotas[$Script:PegasusIndex]
+            [PegasusWavPlayer]::PlayTone($nota.f, $nota.d, $Script:AudioVolume)
+            $Script:PegasusIndex++
+        }
+    } catch {}
+}
+
+# Funcion para sonidos de error/advertencia (tambien audio real)
+function Play-AlertSound {
+    param([string]$Type = "ERROR")
+    try {
+        switch ($Type) {
+            "ERROR" {
+                [PegasusWavPlayer]::PlayTone(330, 150, 0.2)
+                [PegasusWavPlayer]::PlayTone(220, 200, 0.2)
+            }
+            "WARN"  { [PegasusWavPlayer]::PlayTone(440, 100, 0.15) }
+        }
+    } catch {}
+}
+
+# ============================================================================
+# SISTEMA DE MELODIA AMBIENTAL DE FONDO (para procesos largos)
+# Usa un RUNSPACE separado para que el audio no se detenga durante Start-Process -Wait
+# Inspirado en los momentos contemplativos del Santuario - Saint Seiya
+# ============================================================================
+$Script:AmbientRunspace = $null
+$Script:AmbientPowerShell = $null
+$Script:AmbientWavPath = "$env:TEMP\cosmos_ambient.wav"
+
+# Generar WAV ambiental largo (melodia suave tipo Sanctuary)
+function New-AmbientWav {
+    try {
+        $sampleRate = 22050
+        $duracionTotal = 20  # 20 segundos de loop
+        $samples = $sampleRate * $duracionTotal
+
+        # Melodia ambiental continua - estilo Sanctuary/Saint Seiya
+        $notasAmbient = @(
+            @{F=262; Start=0;    Dur=1.8},   # Do4
+            @{F=330; Start=1.8;  Dur=1.8},   # Mi4
+            @{F=392; Start=3.6;  Dur=1.8},   # Sol4
+            @{F=440; Start=5.4;  Dur=2.2},   # La4 - punto alto
+            @{F=392; Start=7.6;  Dur=1.8},   # Sol4
+            @{F=349; Start=9.4;  Dur=1.8},   # Fa4
+            @{F=330; Start=11.2; Dur=1.8},   # Mi4
+            @{F=294; Start=13.0; Dur=1.8},   # Re4
+            @{F=262; Start=14.8; Dur=2.0},   # Do4
+            @{F=294; Start=16.8; Dur=1.6},   # Re4
+            @{F=330; Start=18.4; Dur=1.6}    # Mi4 - prepara loop
+        )
+
+        $volumen = 0.35  # Volumen audible
+
+        $ms = New-Object System.IO.MemoryStream
+        $bw = New-Object System.IO.BinaryWriter($ms)
+
+        # Cabecera WAV
+        $bw.Write([char[]]@('R','I','F','F'))
+        $bw.Write([int](36 + $samples * 2))
+        $bw.Write([char[]]@('W','A','V','E'))
+        $bw.Write([char[]]@('f','m','t',' '))
+        $bw.Write([int]16)
+        $bw.Write([int16]1)
+        $bw.Write([int16]1)
+        $bw.Write([int]$sampleRate)
+        $bw.Write([int]($sampleRate * 2))
+        $bw.Write([int16]2)
+        $bw.Write([int16]16)
+        $bw.Write([char[]]@('d','a','t','a'))
+        $bw.Write([int]($samples * 2))
+
+        for ($i = 0; $i -lt $samples; $i++) {
+            $t = [double]$i / $sampleRate
+            $sampleValue = 0
+
+            foreach ($nota in $notasAmbient) {
+                if ($t -ge $nota.Start -and $t -lt ($nota.Start + $nota.Dur) -and $nota.F -gt 0) {
+                    $notaT = $t - $nota.Start
+                    $fadeIn = [Math]::Min(1.0, $notaT / 0.3)
+                    $fadeOut = [Math]::Min(1.0, ($nota.Dur - $notaT) / 0.5)
+                    $sampleValue = [Math]::Sin(2 * [Math]::PI * $nota.F * $t) * 32767 * $volumen * $fadeIn * $fadeOut
+                    break
+                }
+            }
+            $bw.Write([int16]$sampleValue)
+        }
+
+        $bytes = $ms.ToArray()
+        [System.IO.File]::WriteAllBytes($Script:AmbientWavPath, $bytes)
+        $bw.Dispose()
+        $ms.Dispose()
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+# Iniciar melodia ambiental en RUNSPACE SEPARADO (no se bloquea con Start-Process -Wait)
+function Start-BackgroundMelody {
+    param([string]$Mensaje = "Proceso en curso...")
+
+    try {
+        # Detener si ya hay una corriendo
+        Stop-BackgroundMelody
+
+        # Regenerar WAV
+        if (Test-Path $Script:AmbientWavPath) {
+            Remove-Item $Script:AmbientWavPath -Force -ErrorAction SilentlyContinue
+        }
+        $null = New-AmbientWav
+
+        if (Test-Path $Script:AmbientWavPath) {
+            # Crear Runspace separado para reproducir audio
+            $Script:AmbientRunspace = [runspacefactory]::CreateRunspace()
+            $Script:AmbientRunspace.ApartmentState = "STA"
+            $Script:AmbientRunspace.Open()
+
+            $Script:AmbientPowerShell = [powershell]::Create()
+            $Script:AmbientPowerShell.Runspace = $Script:AmbientRunspace
+
+            # Script que se ejecuta en el runspace separado
+            $audioScript = {
+                param($wavPath)
+                Add-Type -AssemblyName System.Windows.Forms
+                $player = New-Object System.Media.SoundPlayer($wavPath)
+                $player.PlayLooping()
+                # Mantener el runspace vivo mientras reproduce
+                while ($true) {
+                    Start-Sleep -Milliseconds 500
+                }
+            }
+
+            $null = $Script:AmbientPowerShell.AddScript($audioScript)
+            $null = $Script:AmbientPowerShell.AddArgument($Script:AmbientWavPath)
+            $Script:AmbientHandle = $Script:AmbientPowerShell.BeginInvoke()
+
+            Write-Host "  [$([char]0x266B)] $Mensaje" -ForegroundColor DarkCyan
+        }
+    } catch {
+        # Silencioso si falla
+    }
+}
+
+# Detener melodia ambiental
+function Stop-BackgroundMelody {
+    try {
+        if ($Script:AmbientPowerShell) {
+            $Script:AmbientPowerShell.Stop()
+            $Script:AmbientPowerShell.Dispose()
+            $Script:AmbientPowerShell = $null
+        }
+        if ($Script:AmbientRunspace) {
+            $Script:AmbientRunspace.Close()
+            $Script:AmbientRunspace.Dispose()
+            $Script:AmbientRunspace = $null
+        }
+    } catch { }
+}
+
 # Nombres de grupos locales via SID (independiente del idioma de Windows)
 $GrupoAdmin = (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-32-544")).Translate([System.Security.Principal.NTAccount]).Value.Split('\')[-1]
 $GrupoUsuarios = (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-32-545")).Translate([System.Security.Principal.NTAccount]).Value.Split('\')[-1]
@@ -59,12 +344,12 @@ function Write-Log {
     if (-not (Test-Path $RutaLogs)) { New-Item -ItemType Directory -Path $RutaLogs -Force | Out-Null }
     Add-Content -Path "$RutaLogs\config.log" -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [$Tipo] $Mensaje"
 
-    # Sonidos sutiles segun tipo
+    # Sonidos segun tipo - Pegasus Fantasy para exitos! (Audio real WAV)
     try {
         switch ($Tipo) {
-            "OK"    { [Console]::Beep(880, 60); [Console]::Beep(1100, 60) }
-            "ERROR" { [Console]::Beep(330, 150); [Console]::Beep(220, 200) }
-            "WARN"  { [Console]::Beep(440, 100) }
+            "OK"    { Play-PegasusNote }  # Toca siguiente nota de Pegasus Fantasy
+            "ERROR" { Play-AlertSound -Type "ERROR" }
+            "WARN"  { Play-AlertSound -Type "WARN" }
         }
     } catch {}
 }
@@ -466,8 +751,8 @@ function Send-DatosInicio {
 function Send-DatosFin {
     param([string]$InvST)
 
-    Write-StepHeader -Step 24 -Title "ACTUALIZANDO GOOGLE SHEETS - COMPLETADO"
-    Show-ProgressCosmos -Step 24
+    Write-StepHeader -Step 26 -Title "ACTUALIZANDO GOOGLE SHEETS - COMPLETADO"
+    Show-ProgressCosmos -Step 26
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
     $SoftwareList = if ($Script:SoftwareInstalado.Count -gt 0) { $Script:SoftwareInstalado -join ", " } else { "Configuracion completa" }
@@ -530,8 +815,8 @@ function Get-SoftwareInfo {
 function Send-SoftwareInfo {
     param([string]$InvST)
 
-    Write-StepHeader -Step 25 -Title "REGISTRANDO INVENTARIO DE SOFTWARE"
-    Show-ProgressCosmos -Step 25
+    Write-StepHeader -Step 27 -Title "REGISTRANDO INVENTARIO DE SOFTWARE"
+    Show-ProgressCosmos -Step 27
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
     $Info = Get-SoftwareInfo
@@ -606,6 +891,9 @@ function Remove-OfficePrevio {
             return
         }
     }
+
+    # Iniciar melodia ambiental durante la desinstalacion
+    Start-BackgroundMelody -Mensaje "Melodia del Santuario - Desinstalando Office..."
 
     # --- 1. Desinstalar Office Click-to-Run (Microsoft 365, OneNote, etc.) ---
     if (Test-Path $CTR) {
@@ -688,6 +976,9 @@ function Remove-OfficePrevio {
             }
         }
     }
+
+    # Detener melodia ambiental
+    Stop-BackgroundMelody
 
     if ($Eliminado) {
         $Script:SoftwareInstalado += "Office previo removido"
@@ -1562,8 +1853,33 @@ function Install-WinRAR {
 
     if ($Licencia -and (Test-Path $Licencia)) {
         Write-Log "Aplicando licencia de WinRAR..."
-        Start-Process -FilePath $Licencia -ArgumentList "/S" -Wait -NoNewWindow
-        Start-Sleep -Seconds 2
+
+        # Ejecutar licencia SIN esperar (para evitar bloqueo por ventana de confirmacion)
+        Start-Process -FilePath $Licencia -ArgumentList "/S" -NoNewWindow
+
+        # Esperar un momento para que se aplique la licencia
+        Start-Sleep -Seconds 3
+
+        # Cerrar automaticamente cualquier ventana de WinRAR que aparezca
+        # (la ventana de confirmacion de licencia)
+        $WinRARWindows = Get-Process -Name "WinRAR*" -ErrorAction SilentlyContinue
+        foreach ($proc in $WinRARWindows) {
+            try {
+                # Enviar tecla Enter para cerrar dialogos de confirmacion
+                Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+                [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+                Start-Sleep -Milliseconds 500
+            } catch { }
+        }
+
+        # Tambien cerrar procesos de licencia que puedan quedar abiertos
+        Get-Process -Name "*License*" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        Get-Process -Name "WinRAR" -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -ne "" } | ForEach-Object {
+            # Si tiene ventana abierta, cerrarla
+            $_.CloseMainWindow() | Out-Null
+        }
+
+        Start-Sleep -Seconds 1
 
         # Verificar que la licencia se aplico (buscar rarreg.key en la carpeta de WinRAR)
         if (Test-Path "C:\Program Files\WinRAR\rarreg.key") {
@@ -1589,6 +1905,9 @@ function Install-DotNet35 {
         return
     }
 
+    # Iniciar melodia ambiental durante la instalacion
+    Start-BackgroundMelody -Mensaje "Melodia del Santuario - Instalando .NET 3.5..."
+
     # Intentar instalacion offline desde el servidor (sin descargar de internet)
     if (Test-Path $RutaDotNet) {
         Write-Log "Instalando .NET 3.5 offline desde servidor..."
@@ -1596,6 +1915,7 @@ function Install-DotNet35 {
             $DismResult = Dism /Online /Enable-Feature /FeatureName:NetFx3 /All /Source:"$RutaDotNet" /LimitAccess /NoRestart 2>&1
             $EstadoPost = (Get-WindowsOptionalFeature -Online -FeatureName "NetFx3" -ErrorAction SilentlyContinue).State
             if ($EstadoPost -eq "Enabled") {
+                Stop-BackgroundMelody
                 Write-Log ".NET 3.5 instalado (offline)" "OK"
                 $Script:SoftwareInstalado += ".NET 3.5"
                 return
@@ -1614,6 +1934,10 @@ function Install-DotNet35 {
     Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -All -NoRestart -ErrorAction SilentlyContinue | Out-Null
 
     $EstadoFinal = (Get-WindowsOptionalFeature -Online -FeatureName "NetFx3" -ErrorAction SilentlyContinue).State
+
+    # Detener melodia ambiental
+    Stop-BackgroundMelody
+
     if ($EstadoFinal -eq "Enabled") {
         Write-Log ".NET 3.5 instalado (online)" "OK"
         $Script:SoftwareInstalado += ".NET 3.5"
@@ -1807,7 +2131,14 @@ function Install-Office {
         [System.IO.File]::WriteAllText($ConfigPath, $ConfigXML, (New-Object System.Text.UTF8Encoding $false))
 
         Write-Log "Instalando Office 2007 (Word, Excel, PowerPoint)..."
+
+        # Iniciar melodia ambiental durante la instalacion
+        Start-BackgroundMelody -Mensaje "Melodia del Santuario - Instalando Office..."
+
         Start-Process -FilePath $SetupPath -ArgumentList "/config `"$ConfigPath`"" -Wait -NoNewWindow
+
+        # Detener melodia ambiental
+        Stop-BackgroundMelody
 
         Write-Log "Office 2007 instalado" "OK"
         $Script:SoftwareInstalado += "Office 2007"
@@ -1836,7 +2167,15 @@ function Install-Dedalus {
         }
 
         Write-Log "Ejecutando netlogon6.bat..."
+
+        # Iniciar melodia ambiental durante la instalacion
+        Start-BackgroundMelody -Mensaje "Melodia del Santuario - Instalando Dedalus..."
+
         Start-Process cmd -ArgumentList "/c `"$Netlogon`"" -Wait -NoNewWindow
+
+        # Detener melodia ambiental
+        Stop-BackgroundMelody
+
         Write-Log "Dedalus instalado" "OK"
         $Script:SoftwareInstalado += "Dedalus"
     } else {
@@ -1845,282 +2184,149 @@ function Install-Dedalus {
 }
 
 function Add-DedalusSyncStartup {
-    Write-StepHeader -Step 17 -Title "AGREGANDO SINCRONIZADOR AL INICIO Y ACCESOS"
+    Write-StepHeader -Step 17 -Title "LIMPIEZA DE SINCRONIZADOR Y CONFIGURACION"
     Show-ProgressCosmos -Step 17
 
-    $SyncBat = "$RutaDedalus\sync_xhis6_startup.bat"
+    # =========================================================================
+    # NOTA IMPORTANTE: netlogon6.bat configura TODO automaticamente
+    # Esta funcion SOLO hace limpieza de entradas manuales creadas anteriormente
+    # NO creamos accesos directos ni entradas de registro - netlogon6.bat lo hace
+    # =========================================================================
 
-    if (Test-Path $SyncBat) {
-        # Asegurar que la carpeta Dedalus existe
-        if (-not (Test-Path "C:\Dedalus")) { New-Item -ItemType Directory -Path "C:\Dedalus" -Force | Out-Null }
+    Write-Host "  Limpiando entradas manuales anteriores del sincronizador..." -ForegroundColor Yellow
 
-        # Copiar el archivo .bat original al equipo local
-        $LocalSyncBat = "C:\Dedalus\sync_xhis6_startup.bat"
-        Copy-Item -Path $SyncBat -Destination $LocalSyncBat -Force
+    # 1. Eliminar script wrapper si existe (versiones anteriores del configurador)
+    $WrapperFiles = @(
+        "C:\Dedalus\HCG_SyncVisual.ps1",
+        "C:\Dedalus\HCG_SyncWrapper.ps1",
+        "C:\Dedalus\SyncWrapper.ps1",
+        "C:\Dedalus\DedalusSync.ps1"
+    )
+    foreach ($WrapperFile in $WrapperFiles) {
+        if (Test-Path $WrapperFile) {
+            Remove-Item -Path $WrapperFile -Force -ErrorAction SilentlyContinue
+            Write-Log "Eliminado wrapper anterior: $WrapperFile" "OK"
+        }
+    }
 
-        # Desbloquear archivo para evitar ventana de seguridad "Open File"
-        Unblock-File -Path $LocalSyncBat -ErrorAction SilentlyContinue
-        Remove-Item -Path $LocalSyncBat -Stream Zone.Identifier -ErrorAction SilentlyContinue
+    # 2. Limpiar accesos directos MANUALES de Dedalus Sync en carpetas Startup
+    # (Solo eliminamos los que creamos nosotros, no los de netlogon6.bat)
+    $StartupFolders = @(
+        "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp",
+        "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
+    )
 
-        # Desbloquear todos los archivos de Dedalus
+    # Tambien limpiar para todos los usuarios
+    $UsersPath = "C:\Users"
+    Get-ChildItem -Path $UsersPath -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        $UserStartup = "$($_.FullName)\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
+        if (Test-Path $UserStartup) {
+            $StartupFolders += $UserStartup
+        }
+    }
+
+    foreach ($StartupFolder in $StartupFolders) {
+        if (Test-Path $StartupFolder) {
+            # Solo eliminar "Dedalus Sync.lnk" que creamos nosotros manualmente
+            $ManualShortcut = "$StartupFolder\Dedalus Sync.lnk"
+            if (Test-Path $ManualShortcut) {
+                Remove-Item -Path $ManualShortcut -Force -ErrorAction SilentlyContinue
+                Write-Log "Eliminado acceso directo manual: $ManualShortcut" "OK"
+            }
+        }
+    }
+
+    # 3. Limpiar entradas del registro que creamos nosotros (Run keys)
+    $RegistryRunKeys = @(
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run",
+        "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+    )
+    foreach ($RunKey in $RegistryRunKeys) {
+        # Solo eliminar entradas que creamos manualmente
+        $EntriesToRemove = @("DedalusSync", "HCG_Sync", "SyncDedalus", "xHIS_Sync", "Dedalus Sync")
+        foreach ($EntryName in $EntriesToRemove) {
+            try {
+                $CurrentValue = Get-ItemProperty -Path $RunKey -Name $EntryName -ErrorAction SilentlyContinue
+                if ($CurrentValue) {
+                    Remove-ItemProperty -Path $RunKey -Name $EntryName -Force -ErrorAction SilentlyContinue
+                    Write-Log "Eliminada entrada de registro manual: $RunKey\$EntryName" "OK"
+                }
+            } catch { }
+        }
+    }
+
+    Write-Log "Limpieza de entradas manuales completada" "OK"
+
+    # =========================================================================
+    # CONFIGURACION DEL SERVIDOR Y CREDENCIALES
+    # =========================================================================
+
+    # Guardar credenciales del servidor en Windows Credential Manager
+    try {
+        $ServerIP = "10.2.1.17"
+        $CredUser = "distribucion"
+        $CredPass = "distribucion"
+
+        cmdkey /delete:$ServerIP 2>$null | Out-Null
+        cmdkey /add:$ServerIP /user:$CredUser /pass:$CredPass | Out-Null
+
+        Write-Log "Credenciales del servidor $ServerIP guardadas en Windows" "OK"
+    } catch {
+        Write-Log "No se pudo guardar credenciales del servidor (no critico)" "WARN"
+    }
+
+    # Agregar servidor a zona de Intranet (evita bloqueos de seguridad)
+    try {
+        $IntranetZone = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap\Domains\10.2.1.17"
+        if (-not (Test-Path $IntranetZone)) {
+            New-Item -Path $IntranetZone -Force | Out-Null
+        }
+        Set-ItemProperty -Path $IntranetZone -Name "file" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+
+        Write-Log "Servidor agregado a zona de Intranet (sin bloqueos)" "OK"
+    } catch {
+        Write-Log "No se pudo configurar zona de Intranet (no critico)" "WARN"
+    }
+
+    # =========================================================================
+    # COPIAR SINCRONIZADOR AL STARTUP (sync_xhis6.bat)
+    # =========================================================================
+    $SyncSource = "\\10.2.1.17\distribucion\dedalus\sincronizador\sync_xhis6.bat"
+    $StartupFolder = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"
+    $SyncDestino = "$StartupFolder\sync_xhis6.bat"
+
+    Write-Host "  Copiando sincronizador al inicio de Windows..." -ForegroundColor Cyan
+
+    try {
+        if (Test-Path $SyncSource) {
+            # Copiar el archivo sync_xhis6.bat al Startup
+            Copy-Item -Path $SyncSource -Destination $SyncDestino -Force -ErrorAction Stop
+
+            # Desbloquear el archivo copiado
+            Unblock-File -Path $SyncDestino -ErrorAction SilentlyContinue
+
+            Write-Log "Sincronizador copiado a Startup: $SyncDestino" "OK"
+            $Script:SoftwareInstalado += "Sync Dedalus (sync_xhis6.bat)"
+        } else {
+            Write-Log "No se encontro el sincronizador en: $SyncSource" "WARN"
+        }
+    } catch {
+        Write-Log "Error al copiar sincronizador: $($_.Exception.Message)" "ERROR"
+    }
+
+    # Desbloquear archivos de Dedalus si existen
+    if (Test-Path "C:\Dedalus") {
         Get-ChildItem "C:\Dedalus" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
             Unblock-File -Path $_.FullName -ErrorAction SilentlyContinue
         }
-        Write-Log "Archivos Dedalus desbloqueados (sin ventana de seguridad)" "OK"
-
-        # =====================================================================
-        # CREAR SCRIPT VISUAL DE SINCRONIZACION - VERSION SIMPLE Y VISIBLE
-        # =====================================================================
-        $SyncVisualScript = "C:\Dedalus\HCG_SyncVisual.ps1"
-        $SyncVisualContent = @'
-# =============================================================================
-# HCG - SINCRONIZADOR DE EXPEDIENTE CLINICO
-# =============================================================================
-# Hospital Civil de Guadalajara - Coordinacion General de Informatica
-# Version simplificada: muestra el proceso de sincronizacion VISIBLE
-# =============================================================================
-
-$Host.UI.RawUI.WindowTitle = "HCG - Sincronizando Expediente Clinico"
-$ErrorActionPreference = "SilentlyContinue"
-
-# --- Funcion para reproducir melodias ---
-function Play-Melody {
-    param([string]$Type)
-    try {
-        switch ($Type) {
-            "start" {
-                [Console]::Beep(523, 150); Start-Sleep -Milliseconds 50
-                [Console]::Beep(659, 150); Start-Sleep -Milliseconds 50
-                [Console]::Beep(784, 200)
-            }
-            "success" {
-                [Console]::Beep(784, 150); Start-Sleep -Milliseconds 30
-                [Console]::Beep(988, 150); Start-Sleep -Milliseconds 30
-                [Console]::Beep(1175, 300)
-            }
-            "error" {
-                [Console]::Beep(300, 400); Start-Sleep -Milliseconds 100
-                [Console]::Beep(300, 400)
-            }
-        }
-    } catch {}
-}
-
-# --- Limpiar y mostrar header ---
-Clear-Host
-Write-Host ""
-Write-Host "  ============================================================" -ForegroundColor Cyan
-Write-Host "       HOSPITAL CIVIL DE GUADALAJARA" -ForegroundColor White
-Write-Host "       Coordinacion General de Informatica" -ForegroundColor Gray
-Write-Host "  ============================================================" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "       x   x  III   SSS      v   v   666" -ForegroundColor Yellow
-Write-Host "        x x    I   S          v v   6" -ForegroundColor Yellow
-Write-Host "         x     I    SSS        v    6666" -ForegroundColor Yellow
-Write-Host "        x x    I       S       v    6   6" -ForegroundColor Yellow
-Write-Host "       x   x  III  SSS         v     666" -ForegroundColor Yellow
-Write-Host ""
-Write-Host "  ============================================================" -ForegroundColor Cyan
-Write-Host "       SINCRONIZACION DE EXPEDIENTE CLINICO" -ForegroundColor Green
-Write-Host "  ============================================================" -ForegroundColor Cyan
-Write-Host ""
-
-# --- Sonido de inicio ---
-Play-Melody -Type "start"
-
-Write-Host "  [*] Fecha: $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')" -ForegroundColor Cyan
-Write-Host ""
-
-# --- Verificar conexion de red ---
-Write-Host "  [*] Verificando conexion al servidor..." -ForegroundColor Cyan
-$NetworkOK = Test-Connection -ComputerName "10.2.1.17" -Count 1 -Quiet -ErrorAction SilentlyContinue
-if (-not $NetworkOK) {
-    Write-Host "  [!] No se detecta conexion, reintentando..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 3
-    $NetworkOK = Test-Connection -ComputerName "10.2.1.17" -Count 1 -Quiet -ErrorAction SilentlyContinue
-}
-
-if (-not $NetworkOK) {
-    Write-Host ""
-    Write-Host "  [X] ERROR: Sin conexion al servidor de Dedalus" -ForegroundColor Red
-    Write-Host "  [!] Verifique la conexion de red e intente de nuevo" -ForegroundColor Yellow
-    Play-Melody -Type "error"
-    Write-Host ""
-    Write-Host "  Presione cualquier tecla para cerrar..." -ForegroundColor Gray
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-    exit
-}
-
-Write-Host "  [+] Conexion al servidor OK" -ForegroundColor Green
-Write-Host ""
-
-# --- Ejecutar sincronizacion VISIBLE en la MISMA ventana ---
-$SyncBatPath = "C:\Dedalus\sync_xhis6_startup.bat"
-
-if (Test-Path $SyncBatPath) {
-    Write-Host "  ============================================================" -ForegroundColor Magenta
-    Write-Host "       EJECUTANDO SINCRONIZACION - NO CIERRE ESTA VENTANA" -ForegroundColor White
-    Write-Host "  ============================================================" -ForegroundColor Magenta
-    Write-Host ""
-    Write-Host "  Salida del proceso de sincronizacion:" -ForegroundColor Gray
-    Write-Host "  ------------------------------------------------------------" -ForegroundColor DarkGray
-    Write-Host ""
-
-    # Ejecutar el .bat en la MISMA ventana de PowerShell
-    # Esto muestra toda la salida al usuario
-    Push-Location "C:\Dedalus"
-    try {
-        & cmd.exe /c "$SyncBatPath"
-        $ExitCode = $LASTEXITCODE
-    } catch {
-        $ExitCode = 1
-    }
-    Pop-Location
-
-    Write-Host ""
-    Write-Host "  ------------------------------------------------------------" -ForegroundColor DarkGray
-
-    # --- Verificar resultado ---
-    if ($ExitCode -eq 0 -or $ExitCode -eq $null) {
-        Write-Host ""
-        Write-Host "  ============================================================" -ForegroundColor Green
-        Write-Host "       SINCRONIZACION COMPLETADA EXITOSAMENTE" -ForegroundColor Green
-        Write-Host "       El expediente clinico esta listo para usarse" -ForegroundColor White
-        Write-Host "  ============================================================" -ForegroundColor Green
-        Play-Melody -Type "success"
-    } else {
-        Write-Host ""
-        Write-Host "  ============================================================" -ForegroundColor Yellow
-        Write-Host "       SINCRONIZACION COMPLETADA" -ForegroundColor Yellow
-        Write-Host "       (Codigo: $ExitCode - puede ser normal)" -ForegroundColor Gray
-        Write-Host "  ============================================================" -ForegroundColor Yellow
-        Play-Melody -Type "success"
-    }
-} else {
-    Write-Host "  [X] ERROR: No se encontro el archivo de sincronizacion" -ForegroundColor Red
-    Write-Host "  [!] Ruta esperada: $SyncBatPath" -ForegroundColor Yellow
-    Play-Melody -Type "error"
-}
-
-Write-Host ""
-Write-Host "  Esta ventana se cerrara en 5 segundos..." -ForegroundColor Gray
-Start-Sleep -Seconds 5
-'@
-
-        # Guardar el script visual
-        $SyncVisualContent | Out-File -FilePath $SyncVisualScript -Encoding UTF8 -Force
-
-        # Desbloquear el script
-        Unblock-File -Path $SyncVisualScript -ErrorAction SilentlyContinue
-
-        # Establecer permisos para que todos los usuarios puedan ejecutar
-        try {
-            $UsersGroup = Get-UsersGroupName
-            $Acl = Get-Acl $SyncVisualScript
-            $Rule = New-Object System.Security.AccessControl.FileSystemAccessRule($UsersGroup, "ReadAndExecute", "Allow")
-            $Acl.SetAccessRule($Rule)
-            Set-Acl -Path $SyncVisualScript -AclObject $Acl -ErrorAction SilentlyContinue
-        } catch {}
-
-        Write-Log "Script visual de sincronizacion creado: $SyncVisualScript" "OK"
-
-        # =====================================================================
-        # CREAR ACCESO DIRECTO EN STARTUP
-        # =====================================================================
-        $StartupFolder = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp"
-        $ShortcutPath = "$StartupFolder\Dedalus Sync.lnk"
-
-        $WshShell = New-Object -ComObject WScript.Shell
-        $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
-        $Shortcut.TargetPath = "powershell.exe"
-        $Shortcut.Arguments = "-ExecutionPolicy Bypass -File `"$SyncVisualScript`""
-        $Shortcut.WorkingDirectory = "C:\Dedalus"
-        $Shortcut.Description = "HCG - Sincronizador de Expediente Clinico"
-        $Shortcut.WindowStyle = 1  # Normal (visible)
-        $Shortcut.Save()
-
-        Write-Log "Sincronizador visual agregado al inicio de Windows" "OK"
-        $Script:SoftwareInstalado += "Sync Dedalus Visual"
-    } else {
-        Write-Log "No se encontro sync_xhis6_startup.bat en: $RutaDedalus" "WARN"
+        Write-Log "Archivos Dedalus desbloqueados" "OK"
     }
 
-    # Anclar accesos de Dedalus/xHIS a la barra de tareas
-    Add-DedalusToTaskbar
-}
+    Write-Log "Configuracion de sincronizador completada" "OK"
 
-function Add-DedalusToTaskbar {
-    Write-Host "  Anclando accesos de Expediente Clinico a barra de tareas..." -ForegroundColor Cyan
-
-    $xHISFolder = "C:\Dedalus\xHIS"
-    $Desktop = "C:\Users\Public\Desktop"
-    $TaskBarFolder = "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar"
-
-    if (-not (Test-Path $TaskBarFolder)) {
-        New-Item -ItemType Directory -Path $TaskBarFolder -Force | Out-Null
-    }
-
-    # Buscar el acceso directo xHIS v6
-    $xHISShortcut = "$xHISFolder\xHIS v6.lnk"
-    if (Test-Path $xHISShortcut) {
-        # Copiar a escritorio
-        Copy-Item -Path $xHISShortcut -Destination $Desktop -Force -ErrorAction SilentlyContinue
-        # Copiar a barra de tareas
-        Copy-Item -Path $xHISShortcut -Destination $TaskBarFolder -Force -ErrorAction SilentlyContinue
-        Write-Log "xHIS v6 agregado a escritorio y barra de tareas" "OK"
-    } else {
-        # Crear acceso directo para appl_generic si no existe el .lnk
-        $ApplGeneric = "$xHISFolder\appl_generic.exe"
-        if (Test-Path $ApplGeneric) {
-            $ShortcutPath = "$Desktop\xHIS v6.lnk"
-            $WshShell = New-Object -ComObject WScript.Shell
-            $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
-            $Shortcut.TargetPath = $ApplGeneric
-            $Shortcut.WorkingDirectory = $xHISFolder
-            $Shortcut.Description = "Expediente Clinico Electronico xHIS"
-            $IconPath = "$xHISFolder\iconos"
-            if (Test-Path "$IconPath\xhis.ico") {
-                $Shortcut.IconLocation = "$IconPath\xhis.ico"
-            }
-            $Shortcut.Save()
-
-            # Copiar a barra de tareas
-            Copy-Item -Path $ShortcutPath -Destination $TaskBarFolder -Force -ErrorAction SilentlyContinue
-            Write-Log "xHIS v6 (appl_generic) agregado a escritorio y barra de tareas" "OK"
-        }
-    }
-
-    # Buscar otros accesos de Dedalus para la barra de tareas
-    $OtrosAccesos = @(
-        @{ Carpeta = "C:\Dedalus\EscritorioClinico"; Nombre = "Escritorio Clinico" },
-        @{ Carpeta = "C:\Dedalus\xFARMA"; Nombre = "xFARMA" },
-        @{ Carpeta = "C:\Dedalus\hPRESC"; Nombre = "hPRESC" }
-    )
-
-    foreach ($Acceso in $OtrosAccesos) {
-        if (Test-Path $Acceso.Carpeta) {
-            # Buscar acceso directo .lnk
-            $LnkFile = Get-ChildItem -Path $Acceso.Carpeta -Filter "*.lnk" -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($LnkFile) {
-                Copy-Item -Path $LnkFile.FullName -Destination $Desktop -Force -ErrorAction SilentlyContinue
-                Copy-Item -Path $LnkFile.FullName -Destination $TaskBarFolder -Force -ErrorAction SilentlyContinue
-                Write-Log "$($Acceso.Nombre) agregado a barra de tareas" "OK"
-            } else {
-                # Buscar .exe principal
-                $ExeFile = Get-ChildItem -Path $Acceso.Carpeta -Filter "appl_*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-                if ($ExeFile) {
-                    $ShortcutPath = "$Desktop\$($Acceso.Nombre).lnk"
-                    $WshShell = New-Object -ComObject WScript.Shell
-                    $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
-                    $Shortcut.TargetPath = $ExeFile.FullName
-                    $Shortcut.WorkingDirectory = $Acceso.Carpeta
-                    $Shortcut.Save()
-                    Copy-Item -Path $ShortcutPath -Destination $TaskBarFolder -Force -ErrorAction SilentlyContinue
-                    Write-Log "$($Acceso.Nombre) agregado a barra de tareas" "OK"
-                }
-            }
-        }
-    }
+    # NOTA: Los accesos directos de Dedalus (xHIS, xFARMA, Escritorio Clinico)
+    # se crean automaticamente por el sincronizador sync_xhis6.bat
+    # No los creamos manualmente para evitar duplicados
 }
 
 function Install-Antivirus {
@@ -2145,7 +2351,13 @@ function Install-Antivirus {
         Write-Log "Instalando ESET PROTECT... (puede tardar varios minutos)"
         Write-Host "  Archivo: $Instalador" -ForegroundColor Gray
 
+        # Iniciar melodia ambiental durante la instalacion
+        Start-BackgroundMelody -Mensaje "Melodia del Santuario - Instalando Antivirus..."
+
         $Process = Start-Process -FilePath $Instalador -ArgumentList "--silent --accepteula" -Wait -NoNewWindow -PassThru
+
+        # Detener melodia ambiental
+        Stop-BackgroundMelody
 
         if ($Process.ExitCode -eq 0 -or $Process.ExitCode -eq 3010) {
             Write-Log "ESET instalado correctamente" "OK"
@@ -2185,9 +2397,329 @@ function Copy-AccesosDirectos {
     }
 }
 
+function Remove-DuplicateDesktopIcons {
+    param([switch]$SilentMode)
+
+    if (-not $SilentMode) {
+        Write-StepHeader -Step 20 -Title "LIMPIANDO ICONOS DUPLICADOS DEL ESCRITORIO"
+        Show-ProgressCosmos -Step 20
+    }
+
+    # Nombres EXACTOS de iconos de Dedalus (case insensitive)
+    # El script va a buscar cualquier icono que CONTENGA estas palabras clave
+    $PalabrasClave = @(
+        "xfarma",
+        "x-farma",
+        "xhis",
+        "x-his",
+        "escritorio clinico",
+        "escritorioclinico",
+        "hpresc",
+        "dedalus"
+    )
+
+    # Rutas de escritorio
+    $DesktopPaths = @(
+        "C:\Users\Public\Desktop"
+    )
+    Get-ChildItem -Path "C:\Users" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        $UserDesktop = "$($_.FullName)\Desktop"
+        if (Test-Path $UserDesktop) {
+            $DesktopPaths += $UserDesktop
+        }
+    }
+
+    $IconosEliminados = 0
+
+    foreach ($DesktopPath in $DesktopPaths) {
+        if (-not (Test-Path $DesktopPath)) { continue }
+
+        # Obtener TODOS los .lnk del escritorio
+        $AllShortcuts = Get-ChildItem -Path $DesktopPath -Filter "*.lnk" -ErrorAction SilentlyContinue
+
+        foreach ($PalabraClave in $PalabrasClave) {
+            # Buscar iconos que contengan la palabra clave (ignorando mayusculas)
+            $MatchingIcons = $AllShortcuts | Where-Object {
+                $_.BaseName.ToLower() -like "*$PalabraClave*"
+            }
+
+            if ($MatchingIcons.Count -gt 1) {
+                # Hay duplicados! Ordenar para quedarnos con el "mejor" nombre
+                # Prioridad: nombre mas corto y sin numeros al final
+                $Sorted = $MatchingIcons | Sort-Object {
+                    $name = $_.BaseName
+                    # Penalizar nombres con (2), (3), - Copia, etc.
+                    $penalty = 0
+                    if ($name -match '\(\d+\)') { $penalty += 100 }
+                    if ($name -match ' - Copia') { $penalty += 100 }
+                    if ($name -match ' - Copy') { $penalty += 100 }
+                    if ($name -match ' \d+$') { $penalty += 50 }
+                    $penalty + $name.Length
+                }
+
+                # Mantener el primero (mejor), eliminar el resto
+                $Keep = $Sorted | Select-Object -First 1
+                $ToDelete = $Sorted | Select-Object -Skip 1
+
+                foreach ($Dup in $ToDelete) {
+                    Remove-Item -Path $Dup.FullName -Force -ErrorAction SilentlyContinue
+                    if (-not $SilentMode) {
+                        Write-Log "Eliminado duplicado: $($Dup.Name)" "OK"
+                    }
+                    $IconosEliminados++
+                }
+            }
+        }
+    }
+
+    if (-not $SilentMode) {
+        if ($IconosEliminados -gt 0) {
+            Write-Log "Se eliminaron $IconosEliminados iconos duplicados del escritorio" "OK"
+        } else {
+            Write-Log "No se encontraron iconos duplicados" "OK"
+        }
+    }
+
+    return $IconosEliminados
+}
+
+function Enable-WindowsUpdate {
+    Write-StepHeader -Step 21 -Title "HABILITANDO ACTUALIZACIONES AUTOMATICAS DE WINDOWS"
+    Show-ProgressCosmos -Step 21
+
+    try {
+        # Habilitar servicio de Windows Update
+        $WUService = Get-Service -Name "wuauserv" -ErrorAction SilentlyContinue
+        if ($WUService) {
+            Set-Service -Name "wuauserv" -StartupType Automatic -ErrorAction SilentlyContinue
+            Start-Service -Name "wuauserv" -ErrorAction SilentlyContinue
+            Write-Log "Servicio Windows Update habilitado" "OK"
+        }
+
+        # Habilitar servicio BITS (Background Intelligent Transfer)
+        $BITSService = Get-Service -Name "BITS" -ErrorAction SilentlyContinue
+        if ($BITSService) {
+            Set-Service -Name "BITS" -StartupType Automatic -ErrorAction SilentlyContinue
+            Start-Service -Name "BITS" -ErrorAction SilentlyContinue
+            Write-Log "Servicio BITS habilitado" "OK"
+        }
+
+        # Configurar politicas de Windows Update via registro
+        $WUPolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU"
+
+        # Crear la ruta si no existe
+        if (-not (Test-Path $WUPolicyPath)) {
+            New-Item -Path $WUPolicyPath -Force | Out-Null
+        }
+
+        # Configurar actualizaciones automaticas
+        # AUOptions: 4 = Auto download and schedule install
+        Set-ItemProperty -Path $WUPolicyPath -Name "NoAutoUpdate" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $WUPolicyPath -Name "AUOptions" -Value 4 -Type DWord -Force -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $WUPolicyPath -Name "ScheduledInstallDay" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue  # 0 = todos los dias
+        Set-ItemProperty -Path $WUPolicyPath -Name "ScheduledInstallTime" -Value 3 -Type DWord -Force -ErrorAction SilentlyContinue  # 3 AM
+
+        Write-Log "Politicas de actualizacion automatica configuradas" "OK"
+
+        # =========================================================================
+        # HABILITAR FEATURE UPDATES (Windows 11 y actualizaciones mayores)
+        # =========================================================================
+        $WUPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate"
+        if (-not (Test-Path $WUPath)) {
+            New-Item -Path $WUPath -Force | Out-Null
+        }
+
+        # Permitir Feature Updates (actualizaciones a nuevas versiones como Windows 11)
+        # TargetReleaseVersion = 0 significa "no restringir version"
+        Remove-ItemProperty -Path $WUPath -Name "TargetReleaseVersion" -Force -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path $WUPath -Name "TargetReleaseVersionInfo" -Force -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path $WUPath -Name "ProductVersion" -Force -ErrorAction SilentlyContinue
+
+        # Habilitar "Obtener las ultimas actualizaciones tan pronto esten disponibles"
+        # Esto acelera la recepcion de Feature Updates
+        $WUSettingsPath = "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings"
+        if (-not (Test-Path $WUSettingsPath)) {
+            New-Item -Path $WUSettingsPath -Force | Out-Null
+        }
+        Set-ItemProperty -Path $WUSettingsPath -Name "IsContinuousInnovationOptedIn" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $WUSettingsPath -Name "AllowMUUpdateService" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+
+        Write-Log "Feature Updates habilitados (Windows 11 disponible)" "OK"
+
+        # Remover restricciones de GPO si existen (que bloquean updates)
+        $RestrictionsPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate"
+        $RestrictionsToRemove = @("DisableWindowsUpdateAccess", "DoNotConnectToWindowsUpdateInternetLocations", "WUServer", "WUStatusServer", "DeferFeatureUpdates", "DeferFeatureUpdatesPeriodInDays")
+        foreach ($Restriction in $RestrictionsToRemove) {
+            Remove-ItemProperty -Path $RestrictionsPath -Name $Restriction -Force -ErrorAction SilentlyContinue
+        }
+
+        # Limpiar configuracion de usuario que pueda bloquear
+        $UserWUPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\WindowsUpdate"
+        if (Test-Path $UserWUPath) {
+            Remove-ItemProperty -Path $UserWUPath -Name "DisableWindowsUpdateAccess" -Force -ErrorAction SilentlyContinue
+        }
+
+        Write-Log "Restricciones de Windows Update eliminadas" "OK"
+
+        # Forzar deteccion de actualizaciones (no esperar el resultado)
+        Start-Process -FilePath "UsoClient.exe" -ArgumentList "StartScan" -WindowStyle Hidden -ErrorAction SilentlyContinue
+        Start-Process -FilePath "UsoClient.exe" -ArgumentList "StartDownload" -WindowStyle Hidden -ErrorAction SilentlyContinue
+
+        Write-Log "Windows Update habilitado - actualizaciones automaticas y Feature Updates (Win11)" "OK"
+        $Script:SoftwareInstalado += "Windows Update Auto"
+
+    } catch {
+        Write-Log "Error al configurar Windows Update: $($_.Exception.Message)" "WARN"
+    }
+}
+
+function Install-AllWindowsUpdates {
+    Write-StepHeader -Step 21.5 -Title "INSTALANDO TODAS LAS ACTUALIZACIONES DE WINDOWS"
+    Show-ProgressCosmos -Step 21
+
+    Write-Host ""
+    Write-Host "  ============================================================" -ForegroundColor Cyan
+    Write-Host "  |  Instalando TODAS las actualizaciones pendientes:        |" -ForegroundColor Cyan
+    Write-Host "  |  - Windows 11 25H2 (si disponible)                       |" -ForegroundColor Cyan
+    Write-Host "  |  - Drivers (Lenovo, Intel, Realtek, etc.)                |" -ForegroundColor Cyan
+    Write-Host "  |  - .NET Framework                                        |" -ForegroundColor Cyan
+    Write-Host "  |  - Actualizaciones de seguridad                          |" -ForegroundColor Cyan
+    Write-Host "  |                                                          |" -ForegroundColor Cyan
+    Write-Host "  |  Esto puede tardar 15-45 minutos...                      |" -ForegroundColor Cyan
+    Write-Host "  ============================================================" -ForegroundColor Cyan
+    Write-Host ""
+
+    # Iniciar melodia ambiental
+    Start-BackgroundMelody -Mensaje "Melodia del Santuario - Actualizando Windows..."
+
+    try {
+        # Metodo 1: Usar Windows Update via COM Object (nativo, no requiere modulos)
+        Write-Log "Buscando actualizaciones disponibles..." "INFO"
+
+        $UpdateSession = New-Object -ComObject Microsoft.Update.Session
+        $UpdateSearcher = $UpdateSession.CreateUpdateSearcher()
+
+        Write-Host "  Escaneando actualizaciones (puede tardar varios minutos)..." -ForegroundColor Yellow
+        $SearchResult = $UpdateSearcher.Search("IsInstalled=0 and Type='Software' and IsHidden=0")
+
+        $UpdatesToInstall = $SearchResult.Updates
+        $TotalUpdates = $UpdatesToInstall.Count
+
+        if ($TotalUpdates -eq 0) {
+            Write-Log "No hay actualizaciones pendientes - El sistema esta al dia" "OK"
+            Stop-BackgroundMelody
+            $Script:SoftwareInstalado += "Windows Actualizado"
+            return
+        }
+
+        Write-Log "Se encontraron $TotalUpdates actualizaciones pendientes" "INFO"
+        Write-Host ""
+
+        # Mostrar lista de actualizaciones
+        $UpdateCounter = 0
+        foreach ($Update in $UpdatesToInstall) {
+            $UpdateCounter++
+            $SizeMB = [math]::Round($Update.MaxDownloadSize / 1MB, 1)
+            Write-Host "  [$UpdateCounter/$TotalUpdates] $($Update.Title) ($SizeMB MB)" -ForegroundColor Gray
+        }
+        Write-Host ""
+
+        # Crear coleccion para descargar
+        $UpdatesCollection = New-Object -ComObject Microsoft.Update.UpdateColl
+        foreach ($Update in $UpdatesToInstall) {
+            $UpdatesCollection.Add($Update) | Out-Null
+        }
+
+        # Descargar actualizaciones
+        Write-Log "Descargando $TotalUpdates actualizaciones..." "INFO"
+        $Downloader = $UpdateSession.CreateUpdateDownloader()
+        $Downloader.Updates = $UpdatesCollection
+
+        try {
+            $DownloadResult = $Downloader.Download()
+            if ($DownloadResult.ResultCode -eq 2) {
+                Write-Log "Descarga completada exitosamente" "OK"
+            } else {
+                Write-Log "Descarga completada con codigo: $($DownloadResult.ResultCode)" "WARN"
+            }
+        } catch {
+            Write-Log "Error en descarga: $($_.Exception.Message)" "WARN"
+        }
+
+        # Instalar actualizaciones
+        Write-Log "Instalando $TotalUpdates actualizaciones..." "INFO"
+        Write-Host "  Este proceso puede tardar 15-45 minutos. NO apagues el equipo." -ForegroundColor Yellow
+        Write-Host ""
+
+        $Installer = $UpdateSession.CreateUpdateInstaller()
+        $Installer.Updates = $UpdatesCollection
+
+        try {
+            $InstallResult = $Installer.Install()
+
+            $Installed = 0
+            $Failed = 0
+            $RebootRequired = $false
+
+            for ($i = 0; $i -lt $UpdatesCollection.Count; $i++) {
+                $UpdateResult = $InstallResult.GetUpdateResult($i)
+                if ($UpdateResult.ResultCode -eq 2) {
+                    $Installed++
+                } else {
+                    $Failed++
+                }
+                if ($UpdateResult.RebootRequired) {
+                    $RebootRequired = $true
+                }
+            }
+
+            Write-Host ""
+            Write-Log "$Installed actualizaciones instaladas correctamente" "OK"
+            if ($Failed -gt 0) {
+                Write-Log "$Failed actualizaciones fallaron (se pueden reintentar despues)" "WARN"
+            }
+
+            if ($RebootRequired) {
+                Write-Host ""
+                Write-Host "  ============================================================" -ForegroundColor Yellow
+                Write-Host "  |  REINICIO REQUERIDO                                      |" -ForegroundColor Yellow
+                Write-Host "  |  Algunas actualizaciones se completaran tras reiniciar   |" -ForegroundColor Yellow
+                Write-Host "  ============================================================" -ForegroundColor Yellow
+                $Script:SoftwareInstalado += "Updates ($Installed - Reinicio pendiente)"
+            } else {
+                $Script:SoftwareInstalado += "Updates ($Installed instaladas)"
+            }
+
+        } catch {
+            Write-Log "Error durante instalacion: $($_.Exception.Message)" "WARN"
+            $Script:SoftwareInstalado += "Updates (parcial)"
+        }
+
+    } catch {
+        Write-Log "Error en Windows Update: $($_.Exception.Message)" "WARN"
+
+        # Metodo alternativo: usar usoclient
+        Write-Log "Intentando metodo alternativo..." "INFO"
+        try {
+            Start-Process -FilePath "usoclient.exe" -ArgumentList "StartInteractiveScan" -Wait -NoNewWindow -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 5
+            Start-Process -FilePath "usoclient.exe" -ArgumentList "StartDownload" -Wait -NoNewWindow -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 5
+            Start-Process -FilePath "usoclient.exe" -ArgumentList "StartInstall" -Wait -NoNewWindow -ErrorAction SilentlyContinue
+            Write-Log "Windows Update iniciado via usoclient" "OK"
+            $Script:SoftwareInstalado += "Updates (usoclient)"
+        } catch {
+            Write-Log "No se pudo iniciar Windows Update automatico" "WARN"
+        }
+    }
+
+    Stop-BackgroundMelody
+    Write-Host ""
+}
+
 function Remove-AdminUsuarioActual {
-    Write-StepHeader -Step 20 -Title "QUITANDO PRIVILEGIOS DE ADMINISTRADOR"
-    Show-ProgressCosmos -Step 20
+    Write-StepHeader -Step 22 -Title "QUITANDO PRIVILEGIOS DE ADMINISTRADOR"
+    Show-ProgressCosmos -Step 22
 
     $UsuarioActual = $Script:UsuarioOriginal
 
@@ -2216,8 +2748,8 @@ function Remove-AdminUsuarioActual {
 }
 
 function Install-ReporteIP {
-    Write-StepHeader -Step 21 -Title "CONFIGURANDO REPORTE AUTOMATICO DE IP"
-    Show-ProgressCosmos -Step 21
+    Write-StepHeader -Step 23 -Title "CONFIGURANDO REPORTE AUTOMATICO DE IP"
+    Show-ProgressCosmos -Step 23
 
     $ScriptPath = "C:\HCG_Logs\report_ip.ps1"
 
@@ -2317,8 +2849,8 @@ try {
 }
 
 function Install-ReporteSistema {
-    Write-StepHeader -Step 22 -Title "CONFIGURANDO REPORTE DE SISTEMA"
-    Show-ProgressCosmos -Step 22
+    Write-StepHeader -Step 24 -Title "CONFIGURANDO REPORTE DE SISTEMA"
+    Show-ProgressCosmos -Step 24
 
     $ScriptPath = "C:\HCG_Logs\report_system.ps1"
 
@@ -2429,11 +2961,23 @@ try {
     $EspacioLibreGB = if ($Disco) { [math]::Round($Disco.FreeSpace / 1GB, 1) } else { 0 }
     $EspacioTotalGB = if ($Disco) { [math]::Round($Disco.Size / 1GB, 0) } else { 0 }
 
-    # === 7. VERIFICAR INTERNET Y ENVIAR (con reintentos) ===
+    # === 7. VERSION DE WINDOWS ===
+    $WinVer = ""
+    try {
+        $OS = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+        $Build = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" -ErrorAction SilentlyContinue)
+        $DisplayVersion = $Build.DisplayVersion
+        $WinVer = "$($OS.Caption) $DisplayVersion (Build $($Build.CurrentBuild))"
+    } catch { $WinVer = "Desconocida" }
+
+    # === 8. VERIFICAR INTERNET Y ENVIAR (con reintentos) ===
     $TestOK = Test-Connection -ComputerName "8.8.8.8" -Count 1 -Quiet -ErrorAction SilentlyContinue
     if (-not $TestOK) { $TestOK = Test-Connection -ComputerName "dns.google" -Count 1 -Quiet -ErrorAction SilentlyContinue }
     if (-not $TestOK) { try { $null = Invoke-WebRequest -Uri "https://www.google.com" -Method Head -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop; $TestOK = $true } catch {} }
     if (-not $TestOK) { exit }
+
+    # Agregar version de Windows al inicio de las apps instaladas
+    $AppsConWindows = @($WinVer) + $Apps
 
     $Body = @{
         Accion            = "sistema"
@@ -2441,7 +2985,7 @@ try {
         NombreEquipo      = $env:COMPUTERNAME
         Impresoras        = ($PrinterList -join " | ")
         Usuarios          = ($UserList -join " | ")
-        AppsInstaladas    = ($Apps -join " | ")
+        AppsInstaladas    = ($AppsConWindows -join " | ")
         AccesosEscritorio = ($Shortcuts -join " | ")
         EspacioLibreGB    = "$EspacioLibreGB / $EspacioTotalGB GB"
         MBLimpiados       = $MBLimpiados
@@ -2502,8 +3046,8 @@ try {
 }
 
 function Install-ReporteDiagnostico {
-    Write-StepHeader -Step 23 -Title "CONFIGURANDO REPORTE DE DIAGNOSTICO DE SALUD"
-    Show-ProgressCosmos -Step 23
+    Write-StepHeader -Step 25 -Title "CONFIGURANDO REPORTE DE DIAGNOSTICO DE SALUD"
+    Show-ProgressCosmos -Step 25
 
     $ScriptPath = "C:\HCG_Logs\report_diagnostico.ps1"
 
@@ -2656,6 +3200,13 @@ function Verify-Configuracion {
     param([string]$NumInventario)
 
     $NombreUsuarioEsperado = if ($Script:EsOPD) { "OPD" } else { $NumInventario }
+
+    # Limpieza final de iconos duplicados (silenciosa)
+    Write-Host "  Limpiando iconos duplicados del escritorio..." -ForegroundColor Gray
+    $DupsRemoved = Remove-DuplicateDesktopIcons -SilentMode
+    if ($DupsRemoved -gt 0) {
+        Write-Host "  Se eliminaron $DupsRemoved iconos duplicados" -ForegroundColor Green
+    }
 
     Write-Host ""
     Write-Host "  ======================================================" -ForegroundColor DarkYellow
@@ -2865,6 +3416,9 @@ Install-Dedalus; Play-StepSound
 Add-DedalusSyncStartup; Play-StepSound
 Install-Antivirus; Play-StepSound
 Copy-AccesosDirectos; Play-StepSound
+Remove-DuplicateDesktopIcons; Play-StepSound
+Enable-WindowsUpdate; Play-StepSound
+Install-AllWindowsUpdates; Play-StepSound
 Remove-AdminUsuarioActual; Play-StepSound
 Install-ReporteIP; Play-StepSound
 Install-ReporteSistema; Play-StepSound
@@ -2901,7 +3455,7 @@ Show-CosmosAnimation -Message "Victoria cosmica alcanzada!"
 # Melodia de victoria
 Play-VictorySound
 
-Show-ProgressCosmos -Step 25 -Total 25
+Show-ProgressCosmos -Step 27 -Total 27
 
 Write-Host ""
 Write-Host "  $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star" -ForegroundColor DarkYellow
@@ -2939,5 +3493,181 @@ Write-Host "  $Star  Los Caballeros de Informatica protegen este equipo  $Star" 
 Write-Host "  $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star" -ForegroundColor DarkYellow
 Write-Host ""
 
+# PASO FINAL OPCIONAL: Actualizar a Windows 11
+$WinVersion = [System.Environment]::OSVersion.Version
+$WinBuild = $WinVersion.Build
+$EsWindows11 = $WinBuild -ge 22000
+
+if (-not $EsWindows11) {
+    Write-Host ""
+    Write-Host "  $Star $Star $Star ACTUALIZACION A WINDOWS 11 DISPONIBLE $Star $Star $Star" -ForegroundColor Cyan
+    Write-Host ""
+    $RespW11 = Read-Host "  $Star Deseas actualizar este equipo a Windows 11? (S/N)"
+
+    if ($RespW11 -eq "S" -or $RespW11 -eq "s") {
+        Write-Host ""
+        Write-Host "  $Spark Preparando actualizacion cosmica a Windows 11..." -ForegroundColor Cyan
+
+        # Ruta del ISO en el servidor
+        $IsoServidor = "\\10.2.1.13\soportefaa\pack_installer_iA\windows_11_act\Win11_25H2_Spanish_Mexico_x64.iso"
+        $IsoLocal = "$env:TEMP\Win11_Upgrade.iso"
+
+        # Funcion para tocar melodia triste (Blue Dream - Saint Seiya)
+        function Play-SadMelody {
+            # Melodia triste inspirada en Blue Dream de Saint Seiya
+            # Notas melancolicas con reverberacion emocional
+            $notas = @(
+                # Intro melancolico
+                @{F=440; D=600; V=0.4},   # La4 - inicio suave
+                @{F=392; D=600; V=0.45},  # Sol4
+                @{F=349; D=800; V=0.5},   # Fa4 - sostenido
+                @{F=330; D=400; V=0.45},  # Mi4
+                @{F=294; D=600; V=0.4},   # Re4
+                @{F=262; D=1000; V=0.5},  # Do4 - pausa emotiva
+
+                # Secuencia nostalgica
+                @{F=330; D=500; V=0.45},  # Mi4
+                @{F=349; D=500; V=0.5},   # Fa4
+                @{F=392; D=700; V=0.55},  # Sol4
+                @{F=440; D=600; V=0.5},   # La4
+                @{F=392; D=400; V=0.45},  # Sol4
+                @{F=349; D=800; V=0.5},   # Fa4 - sostenido
+
+                # Climax melancolico
+                @{F=523; D=800; V=0.6},   # Do5 - punto alto
+                @{F=494; D=500; V=0.55},  # Si4
+                @{F=440; D=600; V=0.5},   # La4
+                @{F=392; D=700; V=0.45},  # Sol4
+                @{F=349; D=500; V=0.4},   # Fa4
+                @{F=330; D=900; V=0.45},  # Mi4 - sostenido
+                @{F=294; D=600; V=0.4},   # Re4
+                @{F=262; D=1200; V=0.5},  # Do4 - final melancolico
+
+                # Coda esperanzadora
+                @{F=330; D=400; V=0.4},   # Mi4
+                @{F=392; D=500; V=0.45},  # Sol4
+                @{F=523; D=1000; V=0.55}  # Do5 - esperanza
+            )
+
+            foreach ($n in $notas) {
+                try { [PegasusWavPlayer]::PlayTone($n.F, $n.D, $n.V) } catch { }
+                Start-Sleep -Milliseconds 50
+            }
+        }
+
+        # Funcion para mostrar progreso durante upgrade
+        function Show-UpgradeProgress {
+            param([string]$Message, [int]$Percent)
+            $barWidth = 40
+            $filled = [math]::Floor($barWidth * $Percent / 100)
+            $empty = $barWidth - $filled
+            $bar = ("$Star" * $filled) + ("-" * $empty)
+            Write-Host "`r  [$bar] $Percent% - $Message" -NoNewline -ForegroundColor Cyan
+        }
+
+        try {
+            # Verificar que el ISO existe en el servidor
+            Write-Host "  $Arrow Verificando ISO en servidor..." -ForegroundColor Yellow
+            if (-not (Test-Path $IsoServidor)) {
+                Write-Host "  $Arrow ERROR: No se encontro el ISO en: $IsoServidor" -ForegroundColor Red
+                throw "ISO no encontrado"
+            }
+            Write-Host "  $Arrow ISO encontrado! Copiando al equipo local..." -ForegroundColor Green
+
+            # Copiar ISO al equipo local (con progreso)
+            $IsoSize = (Get-Item $IsoServidor).Length
+            $IsoSizeGB = [math]::Round($IsoSize / 1GB, 2)
+            Write-Host "  $Arrow Tamano del ISO: $IsoSizeGB GB" -ForegroundColor Cyan
+            Write-Host "  $Arrow Copiando ISO... (esto tomara unos minutos)" -ForegroundColor Yellow
+            Write-Host ""
+
+            # Iniciar melodia ambiental durante la copia
+            Start-BackgroundMelody -Mensaje "Melodia del Santuario - Copiando Windows 11..."
+
+            # Copiar ISO
+            Copy-Item -Path $IsoServidor -Destination $IsoLocal -Force
+
+            # Detener melodia ambiental
+            Stop-BackgroundMelody
+
+            Write-Host ""
+            Write-Host "  $Arrow ISO copiado exitosamente!" -ForegroundColor Green
+
+            # Montar ISO
+            Write-Host "  $Arrow Montando imagen ISO..." -ForegroundColor Yellow
+            $MountResult = Mount-DiskImage -ImagePath $IsoLocal -PassThru
+            $DriveLetter = ($MountResult | Get-Volume).DriveLetter
+
+            if (-not $DriveLetter) {
+                throw "No se pudo montar el ISO"
+            }
+
+            Write-Host "  $Arrow ISO montado en unidad: ${DriveLetter}:" -ForegroundColor Green
+
+            # Ruta del setup
+            $SetupPath = "${DriveLetter}:\setup.exe"
+
+            if (-not (Test-Path $SetupPath)) {
+                throw "No se encontro setup.exe en el ISO"
+            }
+
+            # Mostrar mensaje epico antes del upgrade
+            Write-Host ""
+            Write-Host "  $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star" -ForegroundColor Magenta
+            Write-Host ""
+            Write-Host "         $Spark  INICIANDO TRANSFORMACION COSMICA  $Spark" -ForegroundColor Cyan
+            Write-Host "         $Spark  WINDOWS 11 - EL NUEVO COSMOS      $Spark" -ForegroundColor Cyan
+            Write-Host ""
+            Write-Host "  $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star $Star" -ForegroundColor Magenta
+            Write-Host ""
+            Write-Host "  $Arrow El proceso de actualizacion comenzara ahora..." -ForegroundColor Yellow
+            Write-Host "  $Arrow El equipo se reiniciara automaticamente varias veces" -ForegroundColor Yellow
+            Write-Host "  $Arrow NO apagues el equipo durante la actualizacion!" -ForegroundColor Red
+            Write-Host ""
+
+            # Tocar melodia triste antes del upgrade
+            Write-Host "  $Spark Melodia de despedida a Windows 10..." -ForegroundColor DarkCyan
+            Play-SadMelody
+
+            Start-Sleep -Seconds 2
+
+            # Ejecutar upgrade silencioso
+            Write-Host ""
+            Write-Host "  $Arrow Ejecutando Windows 11 Setup..." -ForegroundColor Green
+
+            # Parametros para upgrade silencioso
+            # /auto upgrade = actualizacion automatica
+            # /quiet = sin interaccion del usuario
+            # /eula accept = aceptar EULA
+            # /DynamicUpdate disable = no descargar actualizaciones durante setup
+            $SetupArgs = "/auto upgrade /quiet /eula accept /DynamicUpdate disable /copylogs $env:TEMP\Win11UpgradeLogs"
+
+            Start-Process -FilePath $SetupPath -ArgumentList $SetupArgs -Wait
+
+            # Si llegamos aqui, el upgrade se inicio (puede reiniciar)
+            Write-Host ""
+            Write-Host "  $Star $Star $Star ACTUALIZACION INICIADA EXITOSAMENTE $Star $Star $Star" -ForegroundColor Green
+            Write-Host "  $Arrow El equipo se reiniciara para completar la actualizacion" -ForegroundColor Cyan
+
+        } catch {
+            Write-Host ""
+            Write-Host "  $Arrow Error durante actualizacion: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "  $Arrow La configuracion basica se completo correctamente" -ForegroundColor Yellow
+
+            # Limpiar ISO local si existe
+            if (Test-Path $IsoLocal) {
+                try {
+                    Dismount-DiskImage -ImagePath $IsoLocal -ErrorAction SilentlyContinue
+                    Remove-Item $IsoLocal -Force -ErrorAction SilentlyContinue
+                } catch { }
+            }
+        }
+    }
+} else {
+    Write-Host ""
+    Write-Host "  $Star Este equipo ya tiene Windows 11 (Build $WinBuild)" -ForegroundColor Green
+}
+
+Write-Host ""
 $R = Read-Host "  $Star Reiniciar ahora? (S/N)"
 if ($R -eq "S" -or $R -eq "s") { Restart-Computer -Force }
