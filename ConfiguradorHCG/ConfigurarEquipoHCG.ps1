@@ -3196,6 +3196,96 @@ try {
     $Script:SoftwareInstalado += "Reporte Diagnostico"
 }
 
+function Install-AutoUpdate {
+    Write-StepHeader -Step 25.5 -Title "CONFIGURANDO ACTUALIZACIONES AUTOMATICAS (CADA 3 MESES)"
+    Show-ProgressCosmos -Step 25
+
+    # Crear script simple que usa usoclient (comando nativo de Windows)
+    $ScriptPath = "C:\HCG_Logs\auto_update.ps1"
+
+    $ScriptContent = @'
+# HCG - Actualizaciones automaticas cada 3 meses
+# Usa usoclient (comando nativo de Windows) - seguro y estable
+$ErrorActionPreference = "SilentlyContinue"
+
+# Log
+$LogFile = "C:\HCG_Logs\auto_update.log"
+$Date = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+Add-Content -Path $LogFile -Value "[$Date] Iniciando actualizaciones automaticas..."
+
+try {
+    # Buscar actualizaciones
+    Start-Process -FilePath "usoclient.exe" -ArgumentList "StartScan" -Wait -WindowStyle Hidden
+    Start-Sleep -Seconds 60
+
+    # Descargar actualizaciones
+    Start-Process -FilePath "usoclient.exe" -ArgumentList "StartDownload" -Wait -WindowStyle Hidden
+    Start-Sleep -Seconds 120
+
+    # Instalar actualizaciones
+    Start-Process -FilePath "usoclient.exe" -ArgumentList "StartInstall" -Wait -WindowStyle Hidden
+
+    Add-Content -Path $LogFile -Value "[$Date] Actualizaciones completadas"
+
+    # Si hay reinicio pendiente, reiniciar en 5 minutos
+    $RebootPending = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired" -ErrorAction SilentlyContinue)
+    if ($RebootPending) {
+        Add-Content -Path $LogFile -Value "[$Date] Reinicio programado en 5 minutos"
+        shutdown /r /t 300 /c "Actualizaciones de Windows instaladas. El equipo se reiniciara en 5 minutos."
+    }
+} catch {
+    Add-Content -Path $LogFile -Value "[$Date] Error: $($_.Exception.Message)"
+}
+'@
+
+    Initialize-HCGLogsFolder | Out-Null
+    $ScriptContent | Out-File -FilePath $ScriptPath -Encoding UTF8 -Force
+    Write-Log "Script de actualizaciones automaticas creado" "OK"
+
+    # Crear launcher VBS para ejecucion oculta
+    $VbsLauncher = New-HiddenLauncher -PowerShellScriptPath $ScriptPath
+    Write-Log "Launcher VBS creado" "OK"
+
+    # Crear tarea programada: cada 3 meses, a las 2:00 AM
+    $TaskName = "HCG_AutoUpdate"
+
+    try {
+        # Eliminar tarea anterior si existe
+        Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
+
+        $Action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$VbsLauncher`""
+
+        # Trigger: cada 3 meses (90 dias), a las 2:00 AM
+        $Trigger = New-ScheduledTaskTrigger -Daily -At "02:00AM" -DaysInterval 90
+
+        $Settings = New-ScheduledTaskSettingsSet `
+            -AllowStartIfOnBatteries `
+            -DontStopIfGoingOnBatteries `
+            -StartWhenAvailable `
+            -WakeToRun
+
+        $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
+
+        Register-ScheduledTask -TaskName $TaskName `
+            -Action $Action `
+            -Trigger $Trigger `
+            -Settings $Settings `
+            -Principal $Principal `
+            -Description "HCG - Actualizaciones automaticas de Windows cada 3 meses" `
+            -Force | Out-Null
+
+        if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
+            Write-Log "Tarea programada '$TaskName' creada (cada 3 meses a las 2:00 AM)" "OK"
+        } else {
+            Write-Log "No se pudo verificar la tarea programada" "WARN"
+        }
+    } catch {
+        Write-Log "Error al crear tarea programada: $($_.Exception.Message)" "WARN"
+    }
+
+    $Script:SoftwareInstalado += "AutoUpdate 3M"
+}
+
 function Verify-Configuracion {
     param([string]$NumInventario)
 
@@ -3423,6 +3513,7 @@ Remove-AdminUsuarioActual; Play-StepSound
 Install-ReporteIP; Play-StepSound
 Install-ReporteSistema; Play-StepSound
 Install-ReporteDiagnostico; Play-StepSound
+Install-AutoUpdate; Play-StepSound
 
 # Renombrar equipo
 $NuevoNombre = "PC-$NumInventario"
