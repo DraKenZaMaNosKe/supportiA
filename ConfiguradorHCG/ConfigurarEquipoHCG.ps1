@@ -3215,18 +3215,59 @@ try {
     $DiscoLibreGB = if ($Disco) { [math]::Round($Disco.FreeSpace / 1GB, 1) } else { 0 }
     $DiscoTotalGB = if ($Disco) { [math]::Round($Disco.Size / 1GB, 0) } else { 0 }
 
+    # --- TEMPERATURA DEL CPU ---
+    $TempCPU = 0
+    try {
+        # Metodo 1: MSAcpi_ThermalZoneTemperature (mas comun)
+        $ThermalZone = Get-CimInstance -Namespace "root/WMI" -ClassName "MSAcpi_ThermalZoneTemperature" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($ThermalZone -and $ThermalZone.CurrentTemperature) {
+            $TempCPU = [math]::Round(($ThermalZone.CurrentTemperature - 2732) / 10, 0)
+        }
+    } catch {}
+    # Si no funciono, intentar con Win32_TemperatureProbe
+    if ($TempCPU -le 0 -or $TempCPU -gt 120) {
+        try {
+            $TempProbe = Get-CimInstance -ClassName Win32_TemperatureProbe -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($TempProbe -and $TempProbe.CurrentReading) {
+                $TempCPU = [math]::Round($TempProbe.CurrentReading / 10, 0)
+            }
+        } catch {}
+    }
+    # Validar rango razonable
+    if ($TempCPU -lt 20 -or $TempCPU -gt 110) { $TempCPU = 0 }
+
     # --- Estado ---
     $Estado = "OK"; $Recomendaciones = @()
-    if ($RAMPct -gt 85) {
-        $Estado = "Critico"; $Recomendaciones += "RAM critica ($RAMPct%). Se recomienda ampliar memoria"
-    } elseif ($RAMPct -gt 70) {
-        $Estado = "Atencion"; $Recomendaciones += "RAM elevada ($RAMPct%). Monitorear uso. Considerar ampliacion"
+
+    # Diagnostico de TEMPERATURA (prioridad alta)
+    if ($TempCPU -gt 0) {
+        if ($TempCPU -ge 85) {
+            $Estado = "Critico"
+            $Recomendaciones += "URGENTE: CPU a ${TempCPU}C! Revisar pasta termica y ventilador inmediatamente"
+        } elseif ($TempCPU -ge 75) {
+            if ($Estado -ne "Critico") { $Estado = "Atencion" }
+            $Recomendaciones += "CALIENTE: CPU a ${TempCPU}C. Limpiar ventilador. Posible cambio de pasta termica"
+        } elseif ($TempCPU -ge 65) {
+            $Recomendaciones += "CPU a ${TempCPU}C (normal-alto). Monitorear"
+        } else {
+            $Recomendaciones += "CPU a ${TempCPU}C (temperatura OK)"
+        }
     } else {
-        $Recomendaciones += "Equipo operando con recursos suficientes"
+        $Recomendaciones += "Temp CPU: No disponible (sensor no accesible)"
     }
-    if ($ChromeMB -gt 1500) { $Recomendaciones += "Chrome consumiendo $ChromeMB MB. Reducir pestanas" }
-    if ($UptimeDias -gt 15) { $Recomendaciones += "Sin reinicio hace $UptimeDias dias. Reiniciar pronto" }
-    if ($DiscoLibreGB -lt 20) { $Recomendaciones += "Disco bajo: $DiscoLibreGB GB libres. Liberar espacio" }
+
+    # Diagnostico de RAM
+    if ($RAMPct -gt 85) {
+        $Estado = "Critico"; $Recomendaciones += "RAM critica ($RAMPct%). Ampliar memoria"
+    } elseif ($RAMPct -gt 70) {
+        if ($Estado -ne "Critico") { $Estado = "Atencion" }
+        $Recomendaciones += "RAM elevada ($RAMPct%). Considerar ampliacion"
+    }
+
+    # Otros diagnosticos
+    if ($ChromeMB -gt 1500) { $Recomendaciones += "Chrome: $ChromeMB MB. Reducir pestanas" }
+    if ($UptimeDias -gt 15) { $Recomendaciones += "Uptime: $UptimeDias dias. Reiniciar pronto" }
+    if ($DiscoLibreGB -lt 20) { $Recomendaciones += "Disco: $DiscoLibreGB GB libres. Liberar espacio" }
     $RecomendacionStr = $Recomendaciones -join " | "
 
     $Body = @{
