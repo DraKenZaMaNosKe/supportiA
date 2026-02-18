@@ -23,6 +23,10 @@ if (-not (Test-Path "C:\HCG_Logs")) {
     New-Item -ItemType Directory -Path "C:\HCG_Logs" -Force | Out-Null
 }
 
+# Resolver nombre del grupo Users usando SID universal (funciona en cualquier idioma)
+$UsersGroupName = (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-32-545")).Translate([System.Security.Principal.NTAccount]).Value
+Write-Host "  Grupo Users detectado: $UsersGroupName" -ForegroundColor Gray
+
 # =============================================================================
 # 1. SCRIPT DE REPORTE DE IP
 # =============================================================================
@@ -94,7 +98,7 @@ try {
         -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
         -MultipleInstances IgnoreNew
 
-    $Principal = New-ScheduledTaskPrincipal -GroupId "BUILTIN\Users" -RunLevel Limited
+    $Principal = New-ScheduledTaskPrincipal -GroupId $UsersGroupName -RunLevel Limited
 
     Register-ScheduledTask -TaskName "HCG_ReporteIP" -Action $Action `
         -Trigger @($TriggerLogon, $TriggerRepeat) `
@@ -267,7 +271,7 @@ try {
         -ExecutionTimeLimit (New-TimeSpan -Minutes 10) `
         -MultipleInstances IgnoreNew
 
-    $Principal = New-ScheduledTaskPrincipal -GroupId "BUILTIN\Users" -RunLevel Limited
+    $Principal = New-ScheduledTaskPrincipal -GroupId $UsersGroupName -RunLevel Limited
 
     Register-ScheduledTask -TaskName "HCG_ReporteSistema" -Action $Action `
         -Trigger $TriggerLogon `
@@ -406,7 +410,7 @@ try {
         -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
         -MultipleInstances IgnoreNew
 
-    $Principal = New-ScheduledTaskPrincipal -GroupId "BUILTIN\Users" -RunLevel Limited
+    $Principal = New-ScheduledTaskPrincipal -GroupId $UsersGroupName -RunLevel Limited
 
     Register-ScheduledTask -TaskName "HCG_ReporteDiagnostico" -Action $Action `
         -Trigger @($TriggerLogon, $TriggerRepeat) `
