@@ -94,11 +94,14 @@ try {
         -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
         -MultipleInstances IgnoreNew
 
+    $Principal = New-ScheduledTaskPrincipal -GroupId "BUILTIN\Users" -RunLevel Limited
+
     Register-ScheduledTask -TaskName "HCG_ReporteIP" -Action $Action `
         -Trigger @($TriggerLogon, $TriggerRepeat) `
         -Settings $Settings `
+        -Principal $Principal `
         -Description "HCG - Reporte automatico de IP cada 3 horas" `
-        -RunLevel Limited -Force | Out-Null
+        -Force | Out-Null
 
     if (Get-ScheduledTask -TaskName "HCG_ReporteIP" -ErrorAction SilentlyContinue) {
         Write-Host "  [OK] Tarea HCG_ReporteIP creada (cada 3 horas + al iniciar sesion)" -ForegroundColor Green
@@ -264,11 +267,14 @@ try {
         -ExecutionTimeLimit (New-TimeSpan -Minutes 10) `
         -MultipleInstances IgnoreNew
 
+    $Principal = New-ScheduledTaskPrincipal -GroupId "BUILTIN\Users" -RunLevel Limited
+
     Register-ScheduledTask -TaskName "HCG_ReporteSistema" -Action $Action `
         -Trigger $TriggerLogon `
         -Settings $Settings `
+        -Principal $Principal `
         -Description "HCG - Reporte de sistema y limpieza al iniciar sesion" `
-        -RunLevel Limited -Force | Out-Null
+        -Force | Out-Null
 
     if (Get-ScheduledTask -TaskName "HCG_ReporteSistema" -ErrorAction SilentlyContinue) {
         Write-Host "  [OK] Tarea HCG_ReporteSistema creada (al iniciar sesion)" -ForegroundColor Green
@@ -400,11 +406,14 @@ try {
         -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
         -MultipleInstances IgnoreNew
 
+    $Principal = New-ScheduledTaskPrincipal -GroupId "BUILTIN\Users" -RunLevel Limited
+
     Register-ScheduledTask -TaskName "HCG_ReporteDiagnostico" -Action $Action `
         -Trigger @($TriggerLogon, $TriggerRepeat) `
         -Settings $Settings `
+        -Principal $Principal `
         -Description "HCG - Diagnostico de salud cada 4 horas" `
-        -RunLevel Limited -Force | Out-Null
+        -Force | Out-Null
 
     if (Get-ScheduledTask -TaskName "HCG_ReporteDiagnostico" -ErrorAction SilentlyContinue) {
         Write-Host "  [OK] Tarea HCG_ReporteDiagnostico creada (cada 4 horas + al iniciar sesion)" -ForegroundColor Green

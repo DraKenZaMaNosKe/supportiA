@@ -2929,11 +2929,14 @@ try {
             -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
             -MultipleInstances IgnoreNew
 
+        $Principal = New-ScheduledTaskPrincipal -GroupId "BUILTIN\Users" -RunLevel Limited
+
         Register-ScheduledTask -TaskName $TaskName -Action $Action `
             -Trigger @($TriggerLogon, $TriggerRepeat) `
             -Settings $Settings `
+            -Principal $Principal `
             -Description "HCG - Reporte automatico de IP cada 3 horas" `
-            -RunLevel Limited -Force | Out-Null
+            -Force | Out-Null
 
         if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
             Write-Log "Tarea programada '$TaskName' creada (cada 3 horas + al iniciar sesion)" "OK"
@@ -3126,11 +3129,14 @@ try {
             -ExecutionTimeLimit (New-TimeSpan -Minutes 10) `
             -MultipleInstances IgnoreNew
 
+        $Principal = New-ScheduledTaskPrincipal -GroupId "BUILTIN\Users" -RunLevel Limited
+
         Register-ScheduledTask -TaskName $TaskName -Action $Action `
             -Trigger $TriggerLogon `
             -Settings $Settings `
+            -Principal $Principal `
             -Description "HCG - Reporte de sistema y limpieza al iniciar sesion" `
-            -RunLevel Limited -Force | Out-Null
+            -Force | Out-Null
 
         if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
             Write-Log "Tarea programada '$TaskName' creada (al iniciar sesion, delay 2 min)" "OK"
@@ -3318,11 +3324,14 @@ try {
             -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
             -MultipleInstances IgnoreNew
 
+        $Principal = New-ScheduledTaskPrincipal -GroupId "BUILTIN\Users" -RunLevel Limited
+
         Register-ScheduledTask -TaskName $TaskName -Action $Action `
             -Trigger @($TriggerLogon, $TriggerRepeat) `
             -Settings $Settings `
+            -Principal $Principal `
             -Description "HCG - Diagnostico de salud cada 4 horas" `
-            -RunLevel Limited -Force | Out-Null
+            -Force | Out-Null
 
         if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
             Write-Log "Tarea programada '$TaskName' creada (cada 4 horas + al iniciar sesion, delay 3 min)" "OK"
