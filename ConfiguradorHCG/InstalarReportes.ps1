@@ -23,9 +23,9 @@ if (-not (Test-Path "C:\HCG_Logs")) {
     New-Item -ItemType Directory -Path "C:\HCG_Logs" -Force | Out-Null
 }
 
-# Resolver nombre del grupo Users usando SID universal (funciona en cualquier idioma)
-$UsersGroupName = (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-32-545")).Translate([System.Security.Principal.NTAccount]).Value
-Write-Host "  Grupo Users detectado: $UsersGroupName" -ForegroundColor Gray
+# Principal SYSTEM para que las tareas corran sin importar que usuario este logueado
+$PrincipalSystem = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest -LogonType ServiceAccount
+Write-Host "  Principal: SYSTEM (ejecuta sin depender del usuario logueado)" -ForegroundColor Gray
 
 # =============================================================================
 # 1. SCRIPT DE REPORTE DE IP
@@ -98,12 +98,10 @@ try {
         -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
         -MultipleInstances IgnoreNew
 
-    $Principal = New-ScheduledTaskPrincipal -GroupId $UsersGroupName -RunLevel Limited
-
     Register-ScheduledTask -TaskName "HCG_ReporteIP" -Action $Action `
         -Trigger @($TriggerLogon, $TriggerRepeat) `
         -Settings $Settings `
-        -Principal $Principal `
+        -Principal $PrincipalSystem `
         -Description "HCG - Reporte automatico de IP cada 3 horas" `
         -Force | Out-Null
 
@@ -271,12 +269,10 @@ try {
         -ExecutionTimeLimit (New-TimeSpan -Minutes 10) `
         -MultipleInstances IgnoreNew
 
-    $Principal = New-ScheduledTaskPrincipal -GroupId $UsersGroupName -RunLevel Limited
-
     Register-ScheduledTask -TaskName "HCG_ReporteSistema" -Action $Action `
         -Trigger $TriggerLogon `
         -Settings $Settings `
-        -Principal $Principal `
+        -Principal $PrincipalSystem `
         -Description "HCG - Reporte de sistema y limpieza al iniciar sesion" `
         -Force | Out-Null
 
@@ -410,12 +406,10 @@ try {
         -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
         -MultipleInstances IgnoreNew
 
-    $Principal = New-ScheduledTaskPrincipal -GroupId $UsersGroupName -RunLevel Limited
-
     Register-ScheduledTask -TaskName "HCG_ReporteDiagnostico" -Action $Action `
         -Trigger @($TriggerLogon, $TriggerRepeat) `
         -Settings $Settings `
-        -Principal $Principal `
+        -Principal $PrincipalSystem `
         -Description "HCG - Diagnostico de salud cada 4 horas" `
         -Force | Out-Null
 

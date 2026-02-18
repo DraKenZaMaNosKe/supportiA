@@ -2929,8 +2929,7 @@ try {
             -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
             -MultipleInstances IgnoreNew
 
-        $UsersGroup = (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-32-545")).Translate([System.Security.Principal.NTAccount]).Value
-        $Principal = New-ScheduledTaskPrincipal -GroupId $UsersGroup -RunLevel Limited
+        $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest -LogonType ServiceAccount
 
         Register-ScheduledTask -TaskName $TaskName -Action $Action `
             -Trigger @($TriggerLogon, $TriggerRepeat) `
@@ -3130,8 +3129,7 @@ try {
             -ExecutionTimeLimit (New-TimeSpan -Minutes 10) `
             -MultipleInstances IgnoreNew
 
-        $UsersGroup = (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-32-545")).Translate([System.Security.Principal.NTAccount]).Value
-        $Principal = New-ScheduledTaskPrincipal -GroupId $UsersGroup -RunLevel Limited
+        $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest -LogonType ServiceAccount
 
         Register-ScheduledTask -TaskName $TaskName -Action $Action `
             -Trigger $TriggerLogon `
@@ -3326,8 +3324,7 @@ try {
             -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
             -MultipleInstances IgnoreNew
 
-        $UsersGroup = (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-32-545")).Translate([System.Security.Principal.NTAccount]).Value
-        $Principal = New-ScheduledTaskPrincipal -GroupId $UsersGroup -RunLevel Limited
+        $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest -LogonType ServiceAccount
 
         Register-ScheduledTask -TaskName $TaskName -Action $Action `
             -Trigger @($TriggerLogon, $TriggerRepeat) `
