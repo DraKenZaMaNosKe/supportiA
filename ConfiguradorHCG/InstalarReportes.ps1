@@ -355,12 +355,50 @@ try {
     $DiscoLibreGB = if ($Disco) { [math]::Round($Disco.FreeSpace / 1GB, 1) } else { 0 }
     $DiscoTotalGB = if ($Disco) { [math]::Round($Disco.Size / 1GB, 0) } else { 0 }
 
+    # --- TEMPERATURA DEL CPU ---
+    $TempCPU = 0
+    try {
+        $ThermalZone = Get-CimInstance -Namespace "root/WMI" -ClassName "MSAcpi_ThermalZoneTemperature" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($ThermalZone -and $ThermalZone.CurrentTemperature) {
+            $TempCPU = [math]::Round(($ThermalZone.CurrentTemperature - 2732) / 10, 0)
+        }
+    } catch {}
+    if ($TempCPU -le 0 -or $TempCPU -gt 120) {
+        try {
+            $TempProbe = Get-CimInstance -ClassName Win32_TemperatureProbe -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($TempProbe -and $TempProbe.CurrentReading) {
+                $TempCPU = [math]::Round($TempProbe.CurrentReading / 10, 0)
+            }
+        } catch {}
+    }
+    if ($TempCPU -lt 20 -or $TempCPU -gt 110) { $TempCPU = 0 }
+
     # --- Estado ---
     $Estado = "OK"; $Recomendaciones = @()
+
+    # Diagnostico de TEMPERATURA (prioridad alta)
+    if ($TempCPU -gt 0) {
+        if ($TempCPU -ge 85) {
+            $Estado = "Critico"
+            $Recomendaciones += "URGENTE: CPU a ${TempCPU}C! Revisar pasta termica y ventilador inmediatamente"
+        } elseif ($TempCPU -ge 75) {
+            if ($Estado -ne "Critico") { $Estado = "Atencion" }
+            $Recomendaciones += "CALIENTE: CPU a ${TempCPU}C. Limpiar ventilador. Posible cambio de pasta termica"
+        } elseif ($TempCPU -ge 65) {
+            $Recomendaciones += "CPU a ${TempCPU}C (normal-alto). Monitorear"
+        } else {
+            $Recomendaciones += "CPU a ${TempCPU}C (temperatura OK)"
+        }
+    } else {
+        $Recomendaciones += "Temp CPU: No disponible (sensor no accesible)"
+    }
+
+    # Diagnostico de RAM
     if ($RAMPct -gt 85) {
-        $Estado = "Critico"; $Recomendaciones += "RAM critica ($RAMPct%). Se recomienda ampliar memoria"
+        $Estado = "Critico"; $Recomendaciones += "RAM critica ($RAMPct%). Ampliar memoria"
     } elseif ($RAMPct -gt 70) {
-        $Estado = "Atencion"; $Recomendaciones += "RAM elevada ($RAMPct%). Monitorear uso. Considerar ampliacion"
+        if ($Estado -ne "Critico") { $Estado = "Atencion" }
+        $Recomendaciones += "RAM elevada ($RAMPct%). Monitorear uso. Considerar ampliacion"
     } else {
         $Recomendaciones += "Equipo operando con recursos suficientes"
     }
@@ -374,7 +412,7 @@ try {
         RAMTotalGB = $RAMTotalGB; RAMUsadaGB = $RAMUsadaGB; RAMLibreGB = $RAMLibreGB; RAMPct = $RAMPct
         Top5Procesos = $Top5Str; ChromeMB = $ChromeMB; ChromeProcs = $ChromeCount
         DedalusMB = $DedalusMB; DedalusProcs = $DedalusCount; TotalProcs = $TotalProcs
-        CPUPct = $CPUPct; PageFileUsado = $PageFileUsadoMB; PageFileTotal = $PageFileTotalMB
+        CPUPct = $CPUPct; TempCPU = $TempCPU; PageFileUsado = $PageFileUsadoMB; PageFileTotal = $PageFileTotalMB
         UptimeDias = $UptimeDias; DiscoLibreGB = "$DiscoLibreGB / $DiscoTotalGB GB"
         Estado = $Estado; Recomendacion = $RecomendacionStr
         FechaReporte = (Get-Date -Format "dd/MM/yyyy HH:mm")
