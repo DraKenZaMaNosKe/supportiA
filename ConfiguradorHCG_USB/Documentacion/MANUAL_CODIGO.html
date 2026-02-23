@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual Técnico - ConfiguradorHCG v4.0</title>
+    <style>
+        :root {
+            --primary: #1a237e;
+            --secondary: #283593;
+            --accent: #ffd700;
+            --bg-dark: #0d1117;
+            --bg-card: #161b22;
+            --text: #c9d1d9;
+            --text-light: #8b949e;
+            --border: #30363d;
+            --success: #238636;
+            --warning: #d29922;
+            --error: #da3633;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            line-height: 1.7;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            padding: 60px 20px;
+            text-align: center;
+            border-bottom: 4px solid var(--accent);
+        }
+
+        header h1 {
+            font-size: 2.8rem;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            margin-bottom: 10px;
+        }
+
+        header .subtitle {
+            color: var(--accent);
+            font-size: 1.3rem;
+            font-weight: 300;
+        }
+
+        header .version {
+            margin-top: 20px;
+            padding: 8px 20px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+            display: inline-block;
+            color: #fff;
+        }
+
+        /* Navigation */
+        nav {
+            background: var(--bg-card);
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        nav h3 {
+            color: var(--accent);
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        nav ul {
+            list-style: none;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        nav a {
+            color: var(--text);
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        nav a:hover {
+            background: var(--primary);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        /* Sections */
+        section {
+            background: var(--bg-card);
+            margin: 30px 0;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        section h2 {
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            color: #fff;
+            padding: 20px 25px;
+            font-size: 1.5rem;
+            border-bottom: 3px solid var(--accent);
+        }
+
+        section h2 .number {
+            background: var(--accent);
+            color: var(--primary);
+            padding: 5px 12px;
+            border-radius: 5px;
+            margin-right: 15px;
+            font-weight: bold;
+        }
+
+        .content {
+            padding: 25px;
+        }
+
+        h3 {
+            color: var(--accent);
+            margin: 25px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h4 {
+            color: #58a6ff;
+            margin: 20px 0 10px 0;
+        }
+
+        p {
+            margin-bottom: 15px;
+            color: var(--text-light);
+        }
+
+        /* Code blocks */
+        pre {
+            background: #0d1117;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        code {
+            font-family: 'Consolas', 'Monaco', monospace;
+            background: rgba(110, 118, 129, 0.2);
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #79c0ff;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+        }
+
+        .keyword { color: #ff7b72; }
+        .string { color: #a5d6ff; }
+        .variable { color: #ffa657; }
+        .comment { color: #8b949e; font-style: italic; }
+        .function { color: #d2a8ff; }
+        .number { color: #79c0ff; }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border: 1px solid var(--border);
+        }
+
+        th {
+            background: var(--primary);
+            color: #fff;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+        }
+
+        tr:nth-child(even) {
+            background: rgba(255,255,255,0.02);
+        }
+
+        tr:hover {
+            background: rgba(255,215,0,0.05);
+        }
+
+        /* Info boxes */
+        .info-box {
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid;
+        }
+
+        .info-box.note {
+            background: rgba(56, 139, 253, 0.1);
+            border-color: #388bfd;
+        }
+
+        .info-box.warning {
+            background: rgba(210, 153, 34, 0.1);
+            border-color: var(--warning);
+        }
+
+        .info-box.success {
+            background: rgba(35, 134, 54, 0.1);
+            border-color: var(--success);
+        }
+
+        .info-box.danger {
+            background: rgba(218, 54, 51, 0.1);
+            border-color: var(--error);
+        }
+
+        .info-box strong {
+            display: block;
+            margin-bottom: 10px;
+            color: #fff;
+        }
+
+        /* Function cards */
+        .function-card {
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+
+        .function-card .header {
+            background: linear-gradient(90deg, #238636, #2ea043);
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .function-card .header.auxiliary {
+            background: linear-gradient(90deg, #1f6feb, #388bfd);
+        }
+
+        .function-card .header.main {
+            background: linear-gradient(90deg, #8957e5, #a371f7);
+        }
+
+        .function-card .header h4 {
+            color: #fff;
+            margin: 0;
+            font-family: 'Consolas', monospace;
+        }
+
+        .function-card .badge {
+            background: rgba(255,255,255,0.2);
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            color: #fff;
+        }
+
+        .function-card .body {
+            padding: 20px;
+        }
+
+        /* Lists */
+        ul, ol {
+            margin: 15px 0 15px 30px;
+        }
+
+        li {
+            margin-bottom: 8px;
+            color: var(--text-light);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            background: var(--bg-card);
+            border-top: 1px solid var(--border);
+            margin-top: 50px;
+        }
+
+        footer p {
+            color: var(--text-light);
+            margin: 5px 0;
+        }
+
+        footer .logo {
+            font-size: 1.5rem;
+            color: var(--accent);
+            margin-bottom: 15px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            header h1 { font-size: 2rem; }
+            nav ul { flex-direction: column; }
+            .content { padding: 15px; }
+        }
+
+        /* Print styles */
+        @media print {
+            body { background: #fff; color: #000; }
+            header { background: #1a237e; }
+            section { break-inside: avoid; }
+            nav { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>ConfiguradorHCG</h1>
+    <p class="subtitle">Manual Técnico de Referencia</p>
+    <span class="version">Versión 4.0 | PowerShell Script</span>
+</header>
+
+<nav>
+    <div class="container">
+        <h3>Índice de Contenido</h3>
+        <ul>
+            <li><a href="#introduccion">Introducción</a></li>
+            <li><a href="#arquitectura">Arquitectura</a></li>
+            <li><a href="#variables">Variables</a></li>
+            <li><a href="#funciones-aux">Funciones Auxiliares</a></li>
+            <li><a href="#funciones-ui">Interfaz de Usuario</a></li>
+            <li><a href="#funciones-config">Funciones de Configuración</a></li>
+            <li><a href="#integracion">Integración Google Sheets</a></li>
+            <li><a href="#audio">Sistema de Audio</a></li>
+            <li><a href="#flujo">Flujo de Ejecución</a></li>
+        </ul>
+    </div>
+</nav>
+
+<div class="container">
+
+    <!-- INTRODUCCIÓN -->
+    <section id="introduccion">
+        <h2><span class="number">1</span>Introducción</h2>
+        <div class="content">
+            <p><strong style="color:#fff;">ConfiguradorHCG</strong> es un script de automatización desarrollado en PowerShell para la configuración estandarizada de equipos de cómputo del Hospital Civil de Guadalajara. Este sistema permite la instalación desatendida de software, configuración de usuarios, registro en inventario y sincronización con sistemas hospitalarios.</p>
+
+            <h3>Propósito</h3>
+            <p>Automatizar y estandarizar el proceso de configuración de equipos nuevos, reduciendo el tiempo de preparación de aproximadamente 4 horas manuales a menos de 30 minutos de proceso automatizado.</p>
+
+            <h3>Requisitos del Sistema</h3>
+            <table>
+                <tr>
+                    <th>Componente</th>
+                    <th>Requisito</th>
+                </tr>
+                <tr>
+                    <td>Sistema Operativo</td>
+                    <td>Windows 10/11 Pro (64-bit)</td>
+                </tr>
+                <tr>
+                    <td>PowerShell</td>
+                    <td>Versión 5.1 o superior</td>
+                </tr>
+                <tr>
+                    <td>Privilegios</td>
+                    <td>Administrador (se auto-eleva)</td>
+                </tr>
+                <tr>
+                    <td>Conectividad</td>
+                    <td>Red del hospital (acceso a servidores 10.2.1.13 y 10.2.1.17)</td>
+                </tr>
+                <tr>
+                    <td>Internet</td>
+                    <td>Requerido para registro en Google Sheets</td>
+                </tr>
+            </table>
+
+            <div class="info-box note">
+                <strong>Nota Técnica</strong>
+                El script utiliza auto-elevación de privilegios mediante <code>Start-Process</code> con el verbo <code>RunAs</code>, lo que garantiza que siempre se ejecute con permisos de administrador independientemente de cómo se invoque.
+            </div>
+        </div>
+    </section>
+
+    <!-- ARQUITECTURA -->
+    <section id="arquitectura">
+        <h2><span class="number">2</span>Arquitectura del Sistema</h2>
+        <div class="content">
+            <h3>Auto-Elevación de Privilegios</h3>
+            <p>El script inicia verificando si tiene privilegios de administrador. De no ser así, se reinicia automáticamente con elevación:</p>
+
+            <pre><code><span class="comment"># Verificación de privilegios administrativos</span>
+<span class="keyword">if</span> (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+    [Security.Principal.WindowsBuiltInRole]::Administrator)) {
+
+    <span class="comment"># Re-ejecutar con privilegios elevados</span>
+    Start-Process powershell.exe <span class="string">"-ExecutionPolicy Bypass -File `"$PSCommandPath`""</span> -Verb RunAs
+    <span class="keyword">exit</span>
+}</code></pre>
+
+            <h4>Clases .NET Utilizadas</h4>
+            <table>
+                <tr>
+                    <th>Clase</th>
+                    <th>Namespace</th>
+                    <th>Propósito</th>
+                </tr>
+                <tr>
+                    <td><code>WindowsPrincipal</code></td>
+                    <td>System.Security.Principal</td>
+                    <td>Verificar rol del usuario actual</td>
+                </tr>
+                <tr>
+                    <td><code>WindowsIdentity</code></td>
+                    <td>System.Security.Principal</td>
+                    <td>Obtener identidad del usuario</td>
+                </tr>
+                <tr>
+                    <td><code>SecurityIdentifier</code></td>
+                    <td>System.Security.Principal</td>
+                    <td>Traducir SIDs a nombres de grupo</td>
+                </tr>
+                <tr>
+                    <td><code>Console</code></td>
+                    <td>System</td>
+                    <td>Reproducción de tonos de audio</td>
+                </tr>
+                <tr>
+                    <td><code>WScript.Shell</code></td>
+                    <td>COM Object</td>
+                    <td>Creación de accesos directos (.lnk)</td>
+                </tr>
+            </table>
+        </div>
+    </section>
+
+    <!-- VARIABLES -->
+    <section id="variables">
+        <h2><span class="number">3</span>Variables de Configuración</h2>
+        <div class="content">
+
+            <h3>Conexión a Servidores</h3>
+            <table>
+                <tr>
+                    <th>Variable</th>
+                    <th>Valor</th>
+                    <th>Descripción</th>
+                </tr>
+                <tr>
+                    <td><code>$Servidor</code></td>
+                    <td>10.2.1.13</td>
+                    <td>IP del servidor de soporte FAA</td>
+                </tr>
+                <tr>
+                    <td><code>$Usuario</code></td>
+                    <td>2010201</td>
+                    <td>Usuario para autenticación en servidor</td>
+                </tr>
+                <tr>
+                    <td><code>$Password</code></td>
+                    <td>***</td>
+                    <td>Contraseña del usuario de conexión</td>
+                </tr>
+            </table>
+
+            <h3>Rutas de Instaladores</h3>
+            <p>Todas las rutas se construyen a partir de <code>$RutaBase</code> que apunta al recurso compartido del servidor:</p>
+
+            <pre><code><span class="variable">$RutaBase</span>     = <span class="string">"\\$Servidor\soportefaa\pack_installer_iA"</span>
+<span class="variable">$RutaAccesos</span>  = <span class="string">"$RutaBase\accesos_directos"</span>
+<span class="variable">$RutaAcrobat</span>  = <span class="string">"$RutaBase\acrobat_reader"</span>
+<span class="variable">$RutaAntivirus</span>= <span class="string">"$RutaBase\antivirus"</span>
+<span class="variable">$RutaChrome</span>   = <span class="string">"$RutaBase\chrome"</span>
+<span class="variable">$RutaDedalus</span>  = <span class="string">"$RutaBase\dedalus_expedienteclinico"</span>
+<span class="variable">$RutaOffice</span>   = <span class="string">"$RutaBase\office"</span>
+<span class="variable">$RutaWallpaper</span>= <span class="string">"$RutaBase\wallpaper"</span>
+<span class="variable">$RutaDotNet</span>   = <span class="string">"$RutaBase\netframework3_5\sxs"</span>
+<span class="variable">$RutaWinRAR</span>   = <span class="string">"$RutaBase\winrar_licence"</span></code></pre>
+
+            <h3>Variables de Ámbito Script</h3>
+            <p>Las variables con prefijo <code>$Script:</code> mantienen su valor durante toda la ejecución del script:</p>
+
+            <table>
+                <tr>
+                    <th>Variable</th>
+                    <th>Tipo</th>
+                    <th>Propósito</th>
+                </tr>
+                <tr>
+                    <td><code>$Script:SoftwareInstalado</code></td>
+                    <td>Array</td>
+                    <td>Lista acumulativa de software instalado para el reporte final</td>
+                </tr>
+                <tr>
+                    <td><code>$Script:UsuarioOriginal</code></td>
+                    <td>String</td>
+                    <td>Nombre del usuario que ejecutó el script</td>
+                </tr>
+                <tr>
+                    <td><code>$Script:Departamento</code></td>
+                    <td>String</td>
+                    <td>Departamento asignado al equipo</td>
+                </tr>
+                <tr>
+                    <td><code>$Script:EsOPD</code></td>
+                    <td>Boolean</td>
+                    <td>Indica si el equipo pertenece a OPD</td>
+                </tr>
+                <tr>
+                    <td><code>$Script:PegasusNotas</code></td>
+                    <td>Array</td>
+                    <td>Notas musicales de la melodía Pegasus Fantasy</td>
+                </tr>
+                <tr>
+                    <td><code>$Script:PegasusIndex</code></td>
+                    <td>Integer</td>
+                    <td>Índice de la nota actual en la melodía</td>
+                </tr>
+            </table>
+
+            <h3>Identificadores de Seguridad (SID)</h3>
+            <p>Para compatibilidad con Windows en cualquier idioma, se utilizan SIDs en lugar de nombres de grupo:</p>
+
+            <pre><code><span class="comment"># S-1-5-32-544 = BUILTIN\Administrators</span>
+<span class="variable">$GrupoAdmin</span> = (New-Object System.Security.Principal.SecurityIdentifier(<span class="string">"S-1-5-32-544"</span>))
+    .Translate([System.Security.Principal.NTAccount]).Value.Split('\')[-1]
+
+<span class="comment"># S-1-5-32-545 = BUILTIN\Users</span>
+<span class="variable">$GrupoUsuarios</span> = (New-Object System.Security.Principal.SecurityIdentifier(<span class="string">"S-1-5-32-545"</span>))
+    .Translate([System.Security.Principal.NTAccount]).Value.Split('\')[-1]</code></pre>
+
+            <div class="info-box success">
+                <strong>Ventaja de usar SIDs</strong>
+                Los Security Identifiers (SID) son constantes universales en Windows. Mientras que el grupo "Administrators" se llama "Administradores" en español, el SID S-1-5-32-544 siempre identifica al mismo grupo, garantizando compatibilidad internacional.
+            </div>
+        </div>
+    </section>
+
+    <!-- FUNCIONES AUXILIARES -->
+    <section id="funciones-aux">
+        <h2><span class="number">4</span>Funciones Auxiliares</h2>
+        <div class="content">
+
+            <div class="function-card">
+                <div class="header auxiliary">
+                    <h4>Write-Log</h4>
+                    <span class="badge">Logging</span>
+                </div>
+                <div class="body">
+                    <p><strong>Propósito:</strong> Registra mensajes en consola y archivo de log con formato visual distintivo.</p>
+
+                    <h4>Parámetros</h4>
+                    <table>
+                        <tr><th>Parámetro</th><th>Tipo</th><th>Descripción</th></tr>
+                        <tr><td><code>$Mensaje</code></td><td>String</td><td>Texto a registrar</td></tr>
+                        <tr><td><code>$Tipo</code></td><td>String</td><td>Nivel: INFO, OK, WARN, ERROR</td></tr>
+                    </table>
+
+                    <h4>Comportamiento</h4>
+                    <ul>
+                        <li>Muestra iconos Unicode según el tipo de mensaje</li>
+                        <li>Aplica colores distintivos (Verde=OK, Rojo=ERROR, Amarillo=WARN)</li>
+                        <li>Escribe al archivo <code>C:\HCG_Logs\config.log</code></li>
+                        <li>Reproduce la siguiente nota de Pegasus Fantasy en mensajes OK</li>
+                    </ul>
+
+                    <pre><code><span class="keyword">function</span> <span class="function">Write-Log</span> {
+    <span class="keyword">param</span>([<span class="keyword">string</span>]<span class="variable">$Mensaje</span>, [<span class="keyword">string</span>]<span class="variable">$Tipo</span> = <span class="string">"INFO"</span>)
+
+    <span class="variable">$Icon</span> = <span class="keyword">switch</span> (<span class="variable">$Tipo</span>) {
+        <span class="string">"OK"</span>    { [<span class="keyword">char</span>]0x2605 }  <span class="comment"># ★ Estrella</span>
+        <span class="string">"ERROR"</span> { [<span class="keyword">char</span>]0x2716 }  <span class="comment"># ✖ Cruz</span>
+        <span class="string">"WARN"</span>  { [<span class="keyword">char</span>]0x26A0 }  <span class="comment"># ⚠ Alerta</span>
+        <span class="keyword">default</span> { [<span class="keyword">char</span>]0x2192 }  <span class="comment"># → Flecha</span>
+    }
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="function-card">
+                <div class="header auxiliary">
+                    <h4>Find-Installer</h4>
+                    <span class="badge">Utilidad</span>
+                </div>
+                <div class="body">
+                    <p><strong>Propósito:</strong> Busca archivos instaladores en una carpeta especificada.</p>
+
+                    <h4>Parámetros</h4>
+                    <table>
+                        <tr><th>Parámetro</th><th>Tipo</th><th>Descripción</th></tr>
+                        <tr><td><code>$Carpeta</code></td><td>String</td><td>Ruta donde buscar</td></tr>
+                        <tr><td><code>$Filtro</code></td><td>String</td><td>Patrón de búsqueda (default: *.exe)</td></tr>
+                    </table>
+
+                    <h4>Retorno</h4>
+                    <p>Devuelve la ruta completa del primer archivo encontrado, o <code>$null</code> si no existe.</p>
+                </div>
+            </div>
+
+            <div class="function-card">
+                <div class="header auxiliary">
+                    <h4>Get-DatosEquipo</h4>
+                    <span class="badge">Hardware</span>
+                </div>
+                <div class="body">
+                    <p><strong>Propósito:</strong> Recopila información del hardware mediante WMI (Windows Management Instrumentation).</p>
+
+                    <h4>Datos Recopilados</h4>
+                    <table>
+                        <tr><th>Dato</th><th>Fuente WMI</th><th>Descripción</th></tr>
+                        <tr><td>Serie</td><td>Win32_BIOS</td><td>Número de serie del equipo</td></tr>
+                        <tr><td>MACEthernet</td><td>Win32_NetworkAdapter</td><td>Dirección MAC del adaptador Ethernet</td></tr>
+                        <tr><td>MACWiFi</td><td>Win32_NetworkAdapter</td><td>Dirección MAC del adaptador Wi-Fi</td></tr>
+                        <tr><td>ProductKey</td><td>SoftwareLicensingService</td><td>Clave de producto de Windows</td></tr>
+                    </table>
+
+                    <h4>Retorno</h4>
+                    <p>Devuelve una tabla hash (Hashtable) con los datos recopilados.</p>
+                </div>
+            </div>
+
+            <div class="function-card">
+                <div class="header auxiliary">
+                    <h4>New-HiddenLauncher</h4>
+                    <span class="badge">VBScript</span>
+                </div>
+                <div class="body">
+                    <p><strong>Propósito:</strong> Crea un archivo VBScript que ejecuta PowerShell de forma completamente oculta, evitando el destello de ventana que ocurre con Task Scheduler.</p>
+
+                    <h4>Técnica</h4>
+                    <p>Utiliza <code>WScript.Shell.Run</code> con el parámetro de ventana en 0 (oculta):</p>
+
+                    <pre><code><span class="comment">' Launcher VBS generado</span>
+Set objShell = CreateObject(<span class="string">"WScript.Shell"</span>)
+objShell.Run <span class="string">"powershell.exe -WindowStyle Hidden -File script.ps1"</span>, <span class="number">0</span>, False</code></pre>
+                </div>
+            </div>
+
+            <div class="function-card">
+                <div class="header auxiliary">
+                    <h4>Get-UsersGroupName</h4>
+                    <span class="badge">Seguridad</span>
+                </div>
+                <div class="body">
+                    <p><strong>Propósito:</strong> Obtiene el nombre localizado del grupo "Users" independiente del idioma de Windows.</p>
+
+                    <h4>Implementación</h4>
+                    <p>Traduce el SID universal <code>S-1-5-32-545</code> al nombre de cuenta local:</p>
+
+                    <pre><code><span class="variable">$UsersSID</span> = New-Object System.Security.Principal.SecurityIdentifier(<span class="string">"S-1-5-32-545"</span>)
+<span class="keyword">return</span> <span class="variable">$UsersSID</span>.Translate([System.Security.Principal.NTAccount]).Value</code></pre>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- FUNCIONES UI -->
+    <section id="funciones-ui">
+        <h2><span class="number">5</span>Interfaz de Usuario</h2>
+        <div class="content">
+
+            <div class="function-card">
+                <div class="header main">
+                    <h4>Show-Banner</h4>
+                    <span class="badge">UI Principal</span>
+                </div>
+                <div class="body">
+                    <p><strong>Propósito:</strong> Muestra el banner de inicio con arte ASCII animado del logo Pegasus.</p>
+
+                    <h4>Características</h4>
+                    <ul>
+                        <li>Animación de "encendido del cosmo" con caracteres aleatorios</li>
+                        <li>Logo ASCII de Pegasus en colores dorado y cian</li>
+                        <li>Título con efecto de escritura progresiva (typewriter)</li>
+                        <li>Acorde musical de inicio (Do-Mi-Sol-Do)</li>
+                    </ul>
+
+                    <h4>Codificación</h4>
+                    <p>Configura UTF-8 para soporte de caracteres Unicode:</p>
+                    <pre><code><span class="variable">$OutputEncoding</span> = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8</code></pre>
+                </div>
+            </div>
+
+            <div class="function-card">
+                <div class="header main">
+                    <h4>Write-StepHeader</h4>
+                    <span class="badge">Progreso</span>
+                </div>
+                <div class="body">
+                    <p><strong>Propósito:</strong> Muestra el encabezado de cada paso con barra de progreso visual.</p>
+
+                    <h4>Parámetros</h4>
+                    <table>
+                        <tr><th>Parámetro</th><th>Tipo</th><th>Descripción</th></tr>
+                        <tr><td><code>$Step</code></td><td>Integer</td><td>Número del paso actual</td></tr>
+                        <tr><td><code>$Total</code></td><td>Integer</td><td>Total de pasos (default: 25)</td></tr>
+                        <tr><td><code>$Title</code></td><td>String</td><td>Título descriptivo del paso</td></tr>
+                    </table>
+
+                    <h4>Elementos Visuales</h4>
+                    <ul>
+                        <li>Barra de progreso con bloques Unicode (░ y ▓)</li>
+                        <li>Porcentaje de avance</li>
+                        <li>Contador [paso/total]</li>
+                        <li>Separador decorativo con estrellas</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="function-card">
+                <div class="header main">
+                    <h4>Show-ProgressCosmos</h4>
+                    <span class="badge">Título Ventana</span>
+                </div>
+                <div class="body">
+                    <p><strong>Propósito:</strong> Actualiza el título de la ventana de PowerShell con el progreso actual.</p>
+
+                    <pre><code><span class="variable">$Host</span>.UI.RawUI.WindowTitle = <span class="string">"★ Cosmo: $Pct% - Paso $Step/$Total ★"</span></code></pre>
+
+                    <p>Esto permite ver el progreso incluso si la ventana está minimizada (visible en la barra de tareas).</p>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- SISTEMA DE AUDIO -->
+    <section id="audio">
+        <h2><span class="number">6</span>Sistema de Audio - Pegasus Fantasy</h2>
+        <div class="content">
+            <p>El script integra la melodía del opening de Saint Seiya como sistema de retroalimentación auditiva. Cada paso completado exitosamente reproduce la siguiente nota de la canción.</p>
+
+            <h3>Estructura de Notas</h3>
+            <p>Las notas se almacenan como un array de hashtables con frecuencia (Hz) y duración (ms):</p>
+
+            <pre><code><span class="variable">$Script:PegasusNotas</span> = @(
+    @{f=<span class="number">659</span>; d=<span class="number">150</span>},  <span class="comment"># E5 - Mi</span>
+    @{f=<span class="number">659</span>; d=<span class="number">150</span>},  <span class="comment"># E5 - Mi</span>
+    @{f=<span class="number">587</span>; d=<span class="number">150</span>},  <span class="comment"># D5 - Re</span>
+    @{f=<span class="number">659</span>; d=<span class="number">250</span>},  <span class="comment"># E5 - Mi</span>
+    @{f=<span class="number">784</span>; d=<span class="number">150</span>},  <span class="comment"># G5 - Sol</span>
+    <span class="comment">... (22 notas en total)</span>
+)</code></pre>
+
+            <h3>Tabla de Frecuencias Musicales</h3>
+            <table>
+                <tr><th>Nota</th><th>Frecuencia (Hz)</th><th>Octava</th></tr>
+                <tr><td>A4 (La)</td><td>440</td><td>4</td></tr>
+                <tr><td>B4 (Si)</td><td>494</td><td>4</td></tr>
+                <tr><td>C5 (Do)</td><td>523</td><td>5</td></tr>
+                <tr><td>D5 (Re)</td><td>587</td><td>5</td></tr>
+                <tr><td>E5 (Mi)</td><td>659</td><td>5</td></tr>
+                <tr><td>F5 (Fa)</td><td>698</td><td>5</td></tr>
+                <tr><td>G5 (Sol)</td><td>784</td><td>5</td></tr>
+                <tr><td>A5 (La)</td><td>880</td><td>5</td></tr>
+            </table>
+
+            <div class="function-card">
+                <div class="header" style="background: linear-gradient(90deg, #ffd700, #ff8c00);">
+                    <h4>Play-PegasusNote</h4>
+                    <span class="badge">Audio</span>
+                </div>
+                <div class="body">
+                    <p><strong>Propósito:</strong> Reproduce la siguiente nota de la melodía Pegasus Fantasy.</p>
+
+                    <h4>Comportamiento</h4>
+                    <ul>
+                        <li>Usa el índice <code>$Script:PegasusIndex</code> para trackear la posición</li>
+                        <li>Incrementa el índice después de cada reproducción</li>
+                        <li>Reinicia al inicio cuando completa todas las notas</li>
+                        <li>Utiliza <code>[Console]::Beep(frecuencia, duracion)</code></li>
+                    </ul>
+
+                    <pre><code><span class="keyword">function</span> <span class="function">Play-PegasusNote</span> {
+    <span class="keyword">if</span> (<span class="variable">$Script:PegasusIndex</span> -lt <span class="variable">$Script:PegasusNotas</span>.Count) {
+        <span class="variable">$nota</span> = <span class="variable">$Script:PegasusNotas</span>[<span class="variable">$Script:PegasusIndex</span>]
+        [Console]::Beep(<span class="variable">$nota</span>.f, <span class="variable">$nota</span>.d)
+        <span class="variable">$Script:PegasusIndex</span>++
+    }
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="info-box note">
+                <strong>Experiencia de Usuario</strong>
+                Conforme avanza la configuración, el técnico escucha la melodía construyéndose nota por nota. Al completar todos los pasos, se habrá reproducido la melodía completa de Pegasus Fantasy, proporcionando una confirmación auditiva distintiva del éxito de la operación.
+            </div>
+
+        </div>
+    </section>
+
+    <!-- INTEGRACIÓN GOOGLE SHEETS -->
+    <section id="integracion">
+        <h2><span class="number">7</span>Integración con Google Sheets</h2>
+        <div class="content">
+            <p>El script se comunica con una hoja de cálculo de Google mediante Google Apps Script para mantener un inventario centralizado de equipos.</p>
+
+            <h3>Endpoint</h3>
+            <pre><code><span class="variable">$GoogleSheetURL</span> = <span class="string">"https://script.google.com/macros/s/AKfycbw74.../exec"</span></code></pre>
+
+            <div class="function-card">
+                <div class="header" style="background: linear-gradient(90deg, #0f9d58, #34a853);">
+                    <h4>Send-DatosInicio</h4>
+                    <span class="badge">API</span>
+                </div>
+                <div class="body">
+                    <p><strong>Propósito:</strong> Registra un nuevo equipo en el inventario de Google Sheets.</p>
+
+                    <h4>Datos Enviados (JSON)</h4>
+                    <table>
+                        <tr><th>Campo</th><th>Descripción</th></tr>
+                        <tr><td>Accion</td><td>"crear" - indica nueva entrada</td></tr>
+                        <tr><td>Fecha</td><td>Fecha de configuración</td></tr>
+                        <tr><td>InvST</td><td>Número de inventario</td></tr>
+                        <tr><td>Serie</td><td>Número de serie del equipo</td></tr>
+                        <tr><td>Marca/Modelo</td><td>Datos del fabricante</td></tr>
+                        <tr><td>Procesador</td><td>CPU instalado</td></tr>
+                        <tr><td>RAM/Disco</td><td>Especificaciones de memoria y almacenamiento</td></tr>
+                        <tr><td>MAC Ethernet/WiFi</td><td>Direcciones físicas de red</td></tr>
+                        <tr><td>ProductKey</td><td>Licencia de Windows</td></tr>
+                    </table>
+
+                    <h4>Protocolo de Seguridad</h4>
+                    <pre><code>[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12</code></pre>
+                    <p>Se fuerza TLS 1.2 para cumplir con los requisitos de seguridad de Google.</p>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- FLUJO DE EJECUCIÓN -->
+    <section id="flujo">
+        <h2><span class="number">8</span>Flujo de Ejecución</h2>
+        <div class="content">
+            <p>El script ejecuta 25 pasos secuenciales para configurar completamente un equipo:</p>
+
+            <table>
+                <tr><th>#</th><th>Paso</th><th>Descripción</th></tr>
+                <tr><td>1</td><td>Registro Inicial</td><td>Envía datos del equipo a Google Sheets</td></tr>
+                <tr><td>2</td><td>Conexión Servidor</td><td>Establece conexión con servidor de instaladores</td></tr>
+                <tr><td>3</td><td>Número Inventario</td><td>Solicita y valida número de inventario</td></tr>
+                <tr><td>4</td><td>Renombrar Equipo</td><td>Asigna nombre PC-XXXXX según inventario</td></tr>
+                <tr><td>5</td><td>Crear Usuario</td><td>Crea cuenta "Soporte" para acceso remoto</td></tr>
+                <tr><td>6</td><td>Configurar Red</td><td>Establece red como privada</td></tr>
+                <tr><td>7</td><td>Zona Horaria</td><td>Configura zona horaria de México</td></tr>
+                <tr><td>8</td><td>Sincronizar Hora</td><td>Sincroniza con servidor NTP</td></tr>
+                <tr><td>9</td><td>.NET Framework</td><td>Instala .NET Framework 3.5</td></tr>
+                <tr><td>10</td><td>Office 2007</td><td>Instala Microsoft Office 2007</td></tr>
+                <tr><td>11</td><td>Google Chrome</td><td>Instala navegador Chrome</td></tr>
+                <tr><td>12</td><td>Adobe Reader</td><td>Instala Acrobat Reader DC</td></tr>
+                <tr><td>13</td><td>WinRAR</td><td>Instala WinRAR con licencia</td></tr>
+                <tr><td>14</td><td>ESET Antivirus</td><td>Instala ESET Endpoint Antivirus</td></tr>
+                <tr><td>15</td><td>Desinstalar Office 365</td><td>Remueve Office 365 preinstalado</td></tr>
+                <tr><td>16</td><td>Instalar Dedalus</td><td>Instala sistema de expediente clínico</td></tr>
+                <tr><td>17</td><td>Sincronizador Startup</td><td>Configura sincronizador para inicio automático</td></tr>
+                <tr><td>18</td><td>Credenciales Servidor</td><td>Guarda credenciales en Windows Credential Manager</td></tr>
+                <tr><td>19</td><td>Wallpaper</td><td>Genera fondo de pantalla personalizado</td></tr>
+                <tr><td>20</td><td>Pantalla Bloqueo</td><td>Configura imagen de pantalla de bloqueo</td></tr>
+                <tr><td>21</td><td>Accesos Directos</td><td>Crea accesos en escritorio y barra de tareas</td></tr>
+                <tr><td>22</td><td>Tareas Programadas</td><td>Instala reportes automáticos</td></tr>
+                <tr><td>23</td><td>Actualizar Sheets</td><td>Actualiza estado en Google Sheets</td></tr>
+                <tr><td>24</td><td>Resumen</td><td>Muestra resumen de configuración</td></tr>
+                <tr><td>25</td><td>Finalización</td><td>Fanfarria de victoria y cierre</td></tr>
+            </table>
+
+            <div class="info-box success">
+                <strong>Idempotencia</strong>
+                Cada función de instalación verifica si el software ya está instalado antes de proceder, permitiendo re-ejecutar el script sin duplicar instalaciones ni causar errores.
+            </div>
+
+        </div>
+    </section>
+
+</div>
+
+<footer>
+    <div class="logo">★ ConfiguradorHCG ★</div>
+    <p><strong>Hospital Civil de Guadalajara</strong></p>
+    <p>Coordinación General de Informática</p>
+    <p>Soporte Técnico - Ext. 54425</p>
+    <p style="margin-top: 20px; color: #6e7681;">
+        Documentación generada: Febrero 2026<br>
+        Versión del Script: 4.0
+    </p>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ConfiguradorHCG - Documentacion Tecnica</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #0a0a0a;
+            color: #00ff00;
+            font-family: 'Share Tech Mono', 'Courier New', monospace;
+            line-height: 1.6;
+            padding: 20px;
+            background-image:
+                radial-gradient(ellipse at top, #001100 0%, #0a0a0a 50%),
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,0,0.03) 2px, rgba(0,255,0,0.03) 4px);
+        }
+
+        .matrix-rain {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.05;
+            z-index: -1;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0,255,0,0.1) 2px,
+                rgba(0,255,0,0.1) 4px
+            );
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(0,20,0,0.8);
+            border: 1px solid #00ff00;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 0 30px rgba(0,255,0,0.3), inset 0 0 30px rgba(0,255,0,0.05);
+        }
+
+        .header {
+            text-align: center;
+            padding: 30px 0;
+            border-bottom: 2px solid #00ff00;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            text-shadow: 0 0 10px #00ff00, 0 0 20px #00ff00, 0 0 30px #00ff00;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { text-shadow: 0 0 10px #00ff00, 0 0 20px #00ff00; }
+            to { text-shadow: 0 0 20px #00ff00, 0 0 30px #00ff00, 0 0 40px #00ff00; }
+        }
+
+        .header .subtitle {
+            color: #00cc00;
+            font-size: 1.2em;
+            margin-top: 10px;
+        }
+
+        .header .hospital {
+            color: #00ff88;
+            font-size: 1em;
+            margin-top: 5px;
+        }
+
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #004400;
+            border-radius: 5px;
+            background: rgba(0,30,0,0.5);
+        }
+
+        .section h2 {
+            color: #00ffaa;
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #004400;
+            display: flex;
+            align-items: center;
+        }
+
+        .section h2::before {
+            content: ">";
+            margin-right: 10px;
+            color: #00ff00;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        .step {
+            margin: 15px 0;
+            padding: 15px;
+            background: rgba(0,40,0,0.5);
+            border-left: 3px solid #00ff00;
+            transition: all 0.3s ease;
+        }
+
+        .step:hover {
+            background: rgba(0,60,0,0.7);
+            border-left-color: #00ffaa;
+            transform: translateX(5px);
+        }
+
+        .step-number {
+            display: inline-block;
+            background: #00ff00;
+            color: #000;
+            padding: 2px 10px;
+            border-radius: 3px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .step-title {
+            color: #00ffcc;
+            font-size: 1.1em;
+        }
+
+        .step-desc {
+            color: #00cc00;
+            margin-top: 8px;
+            padding-left: 20px;
+        }
+
+        .step-why {
+            color: #00aa00;
+            margin-top: 5px;
+            padding-left: 20px;
+            font-style: italic;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .feature-card {
+            background: rgba(0,50,0,0.6);
+            border: 1px solid #00ff00;
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: scale(1.02);
+            box-shadow: 0 0 20px rgba(0,255,0,0.4);
+        }
+
+        .feature-card h3 {
+            color: #00ffaa;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+
+        .feature-card h3::before {
+            content: "[+]";
+            margin-right: 8px;
+            color: #00ff00;
+        }
+
+        .icon {
+            font-size: 1.5em;
+            margin-right: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid #004400;
+        }
+
+        th {
+            background: rgba(0,100,0,0.5);
+            color: #00ffaa;
+        }
+
+        tr:hover {
+            background: rgba(0,60,0,0.5);
+        }
+
+        .highlight {
+            color: #00ffff;
+        }
+
+        .warning {
+            color: #ffff00;
+        }
+
+        .success {
+            color: #00ff00;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #004400;
+            color: #006600;
+        }
+
+        .code {
+            background: #001100;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-family: monospace;
+            color: #00ff88;
+        }
+
+        .ascii-art {
+            font-size: 0.7em;
+            line-height: 1.2;
+            color: #00aa00;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        @media print {
+            body {
+                background: white;
+                color: black;
+            }
+            .container {
+                border: 2px solid black;
+                box-shadow: none;
+            }
+            .step {
+                border-left-color: black;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="matrix-rain"></div>
+
+    <div class="container">
+        <div class="header">
+            <pre class="ascii-art">
+   ██████╗ ██████╗ ███╗   ██╗███████╗██╗ ██████╗ ██╗   ██╗██████╗  █████╗ ██████╗  ██████╗ ██████╗
+  ██╔════╝██╔═══██╗████╗  ██║██╔════╝██║██╔════╝ ██║   ██║██╔══██╗██╔══██╗██╔══██╗██╔═══██╗██╔══██╗
+  ██║     ██║   ██║██╔██╗ ██║█████╗  ██║██║  ███╗██║   ██║██████╔╝███████║██║  ██║██║   ██║██████╔╝
+  ██║     ██║   ██║██║╚██╗██║██╔══╝  ██║██║   ██║██║   ██║██╔══██╗██╔══██║██║  ██║██║   ██║██╔══██╗
+  ╚██████╗╚██████╔╝██║ ╚████║██║     ██║╚██████╔╝╚██████╔╝██║  ██║██║  ██║██████╔╝╚██████╔╝██║  ██║
+   ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝     ╚═╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝  ╚═════╝ ╚═╝  ╚═╝
+            </pre>
+            <h1>CONFIGURADOR HCG</h1>
+            <div class="subtitle">Sistema Automatizado de Configuracion de Equipos</div>
+            <div class="hospital">Hospital Civil de Guadalajara - Soporte Tecnico iA</div>
+            <div style="margin-top: 15px; color: #00aa00;">Version 2.0 | Febrero 2026</div>
+        </div>
+
+        <!-- RESUMEN EJECUTIVO -->
+        <div class="section">
+            <h2>RESUMEN EJECUTIVO</h2>
+            <p>Sistema automatizado que configura equipos de computo del Hospital Civil de Guadalajara en <span class="highlight">menos de 30 minutos</span>, eliminando la necesidad de configuracion manual y reduciendo errores humanos.</p>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h3>27 Pasos Automatizados</h3>
+                    <p>Desde registro inicial hasta verificacion final, todo sin intervencion humana.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Monitoreo Continuo</h3>
+                    <p>Reportes automaticos de IP, sistema y diagnostico de salud cada 3-4 horas.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Actualizaciones Automaticas</h3>
+                    <p>Windows Update cada 3 meses sin intervencion del usuario.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Seguridad Integrada</h3>
+                    <p>Usuarios separados (admin/normal), antivirus, y privilegios controlados.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- PASOS DE CONFIGURACION -->
+        <div class="section">
+            <h2>PASOS DE CONFIGURACION</h2>
+
+            <div class="step">
+                <span class="step-number">01</span>
+                <span class="step-title">REGISTRO EN GOOGLE SHEETS</span>
+                <div class="step-desc"><strong>Que hace:</strong> Registra el equipo en la base de datos con MAC, serie, nombre.</div>
+                <div class="step-why"><strong>Por que:</strong> Inventario centralizado y trazabilidad de equipos configurados.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">02</span>
+                <span class="step-title">CONEXION AL SERVIDOR</span>
+                <div class="step-desc"><strong>Que hace:</strong> Conecta a \\10.2.1.13 para acceder a instaladores y recursos.</div>
+                <div class="step-why"><strong>Por que:</strong> Centraliza software y evita descargas de internet (mas rapido y seguro).</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">03</span>
+                <span class="step-title">ELIMINACION DE OFFICE PREVIO</span>
+                <div class="step-desc"><strong>Que hace:</strong> Desinstala versiones anteriores de Office (2007, 2010, 2013, 365).</div>
+                <div class="step-why"><strong>Por que:</strong> Evita conflictos y asegura instalacion limpia de Office 2007.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">04</span>
+                <span class="step-title">CREACION USUARIO SOPORTE</span>
+                <div class="step-desc"><strong>Que hace:</strong> Crea usuario "Soporte" con privilegios de administrador y contrasena segura.</div>
+                <div class="step-why"><strong>Por que:</strong> Solo soporte tecnico tiene acceso administrativo al sistema.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">05</span>
+                <span class="step-title">CREACION USUARIO NORMAL</span>
+                <div class="step-desc"><strong>Que hace:</strong> Crea usuario con numero de inventario, sin contrasena, auto-login.</div>
+                <div class="step-why"><strong>Por que:</strong> Usuario del hospital tiene acceso limitado, sin poder instalar software.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">06</span>
+                <span class="step-title">IMAGENES DE PERFIL</span>
+                <div class="step-desc"><strong>Que hace:</strong> Asigna imagen personalizada del hospital a los perfiles de usuario.</div>
+                <div class="step-why"><strong>Por que:</strong> Identidad visual institucional y profesionalismo.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">07</span>
+                <span class="step-title">CONFIGURACION RED PRIVADA</span>
+                <div class="step-desc"><strong>Que hace:</strong> Establece la red como privada para permitir compartir recursos.</div>
+                <div class="step-why"><strong>Por que:</strong> Habilita acceso a impresoras de red y carpetas compartidas.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">08</span>
+                <span class="step-title">HORA AUTOMATICA</span>
+                <div class="step-desc"><strong>Que hace:</strong> Configura sincronizacion de hora con servidor NTP.</div>
+                <div class="step-why"><strong>Por que:</strong> Hora correcta para registros medicos y firmas digitales.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">09</span>
+                <span class="step-title">TEMA OSCURO PERSONALIZADO</span>
+                <div class="step-desc"><strong>Que hace:</strong> Aplica tema oscuro con colores del hospital.</div>
+                <div class="step-why"><strong>Por que:</strong> Reduce fatiga visual en turnos nocturnos y ahorra energia en pantallas OLED.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">10</span>
+                <span class="step-title">INSTALACION WINRAR</span>
+                <div class="step-desc"><strong>Que hace:</strong> Instala WinRAR con licencia corporativa.</div>
+                <div class="step-why"><strong>Por que:</strong> Necesario para descomprimir archivos de expedientes y reportes.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">11</span>
+                <span class="step-title">INSTALACION .NET 3.5</span>
+                <div class="step-desc"><strong>Que hace:</strong> Habilita .NET Framework 3.5 requerido por aplicaciones legacy.</div>
+                <div class="step-why"><strong>Por que:</strong> Dedalus y otras apps medicas requieren esta version.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">12</span>
+                <span class="step-title">INSTALACION ACROBAT READER</span>
+                <div class="step-desc"><strong>Que hace:</strong> Instala Adobe Acrobat Reader DC.</div>
+                <div class="step-why"><strong>Por que:</strong> Visualizar PDFs de laboratorio, rayos X, reportes medicos.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">13</span>
+                <span class="step-title">INSTALACION GOOGLE CHROME</span>
+                <div class="step-desc"><strong>Que hace:</strong> Instala Chrome como navegador principal.</div>
+                <div class="step-why"><strong>Por que:</strong> Compatibilidad con sistemas web del hospital (Dedalus, IMSS).</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">14</span>
+                <span class="step-title">FONDO DE PANTALLA</span>
+                <div class="step-desc"><strong>Que hace:</strong> Establece fondo institucional del Hospital Civil.</div>
+                <div class="step-why"><strong>Por que:</strong> Identidad visual y profesionalismo en areas de atencion.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">15</span>
+                <span class="step-title">INSTALACION OFFICE 2007</span>
+                <div class="step-desc"><strong>Que hace:</strong> Instala Word, Excel, PowerPoint 2007 con licencia.</div>
+                <div class="step-why"><strong>Por que:</strong> Compatibilidad con documentos existentes y macros del hospital.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">16</span>
+                <span class="step-title">INSTALACION DEDALUS</span>
+                <div class="step-desc"><strong>Que hace:</strong> Instala cliente de Expediente Clinico Electronico Dedalus.</div>
+                <div class="step-why"><strong>Por que:</strong> Sistema principal para registro de pacientes y consultas.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">17</span>
+                <span class="step-title">SINCRONIZADOR DEDALUS</span>
+                <div class="step-desc"><strong>Que hace:</strong> Configura sincronizacion automatica de Dedalus al inicio.</div>
+                <div class="step-why"><strong>Por que:</strong> Mantiene el cliente actualizado sin intervencion del usuario.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">18</span>
+                <span class="step-title">INSTALACION ANTIVIRUS ESET</span>
+                <div class="step-desc"><strong>Que hace:</strong> Instala ESET Endpoint Security con configuracion corporativa.</div>
+                <div class="step-why"><strong>Por que:</strong> Proteccion contra malware y cumplimiento de seguridad hospitalaria.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">19</span>
+                <span class="step-title">ACCESOS DIRECTOS</span>
+                <div class="step-desc"><strong>Que hace:</strong> Copia accesos directos a sistemas web del hospital.</div>
+                <div class="step-why"><strong>Por que:</strong> Acceso rapido a Escritorio Clinico, IMSS, laboratorios, etc.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">20</span>
+                <span class="step-title">LIMPIEZA DE ICONOS</span>
+                <div class="step-desc"><strong>Que hace:</strong> Elimina iconos duplicados del escritorio.</div>
+                <div class="step-why"><strong>Por que:</strong> Escritorio limpio y organizado para el usuario.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">21</span>
+                <span class="step-title">HABILITAR WINDOWS UPDATE</span>
+                <div class="step-desc"><strong>Que hace:</strong> Configura actualizaciones automaticas de Windows.</div>
+                <div class="step-why"><strong>Por que:</strong> Parches de seguridad y estabilidad del sistema.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">21.5</span>
+                <span class="step-title">INSTALAR ACTUALIZACIONES</span>
+                <div class="step-desc"><strong>Que hace:</strong> Descarga e instala TODAS las actualizaciones pendientes (Windows 11, drivers, .NET).</div>
+                <div class="step-why"><strong>Por que:</strong> Equipo completamente actualizado desde el primer dia.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">22</span>
+                <span class="step-title">REMOVER ADMIN USUARIO</span>
+                <div class="step-desc"><strong>Que hace:</strong> Quita privilegios de administrador al usuario normal.</div>
+                <div class="step-why"><strong>Por que:</strong> Seguridad: usuarios no pueden instalar software no autorizado.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">23</span>
+                <span class="step-title">REPORTE DE IP</span>
+                <div class="step-desc"><strong>Que hace:</strong> Tarea programada que reporta IP cada 3 horas a Google Sheets.</div>
+                <div class="step-why"><strong>Por que:</strong> Ubicacion del equipo en la red para soporte remoto.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">24</span>
+                <span class="step-title">REPORTE DE SISTEMA</span>
+                <div class="step-desc"><strong>Que hace:</strong> Reporta apps, impresoras, usuarios, espacio en disco.</div>
+                <div class="step-why"><strong>Por que:</strong> Inventario actualizado y deteccion de cambios.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">25</span>
+                <span class="step-title">DIAGNOSTICO DE SALUD</span>
+                <div class="step-desc"><strong>Que hace:</strong> Reporta RAM, CPU, temperatura, procesos cada 4 horas.</div>
+                <div class="step-why"><strong>Por que:</strong> Deteccion proactiva de problemas (RAM llena, CPU caliente, disco lleno).</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">25.5</span>
+                <span class="step-title">AUTO-ACTUALIZACIONES</span>
+                <div class="step-desc"><strong>Que hace:</strong> Tarea que actualiza Windows cada 3 meses automaticamente.</div>
+                <div class="step-why"><strong>Por que:</strong> Equipos siempre actualizados sin intervencion de soporte.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">26</span>
+                <span class="step-title">REGISTRO FINAL</span>
+                <div class="step-desc"><strong>Que hace:</strong> Actualiza Google Sheets con estado "Completado".</div>
+                <div class="step-why"><strong>Por que:</strong> Confirmacion de configuracion exitosa en base de datos.</div>
+            </div>
+
+            <div class="step">
+                <span class="step-number">27</span>
+                <span class="step-title">REINICIO AUTOMATICO</span>
+                <div class="step-desc"><strong>Que hace:</strong> Reinicia el equipo para aplicar todas las actualizaciones.</div>
+                <div class="step-why"><strong>Por que:</strong> Actualizaciones de Windows y BIOS requieren reinicio.</div>
+            </div>
+        </div>
+
+        <!-- REPORTES AUTOMATICOS -->
+        <div class="section">
+            <h2>SISTEMA DE REPORTES AUTOMATICOS</h2>
+
+            <table>
+                <tr>
+                    <th>Reporte</th>
+                    <th>Frecuencia</th>
+                    <th>Datos Enviados</th>
+                    <th>Uso</th>
+                </tr>
+                <tr>
+                    <td class="highlight">Reporte IP</td>
+                    <td>Cada 3 horas + al iniciar sesion</td>
+                    <td>IP, MAC, Nombre equipo</td>
+                    <td>Ubicar equipos para soporte remoto</td>
+                </tr>
+                <tr>
+                    <td class="highlight">Reporte Sistema</td>
+                    <td>Al iniciar sesion</td>
+                    <td>Apps, Impresoras, Usuarios, Disco, Accesos</td>
+                    <td>Inventario actualizado</td>
+                </tr>
+                <tr>
+                    <td class="highlight">Diagnostico Salud</td>
+                    <td>Cada 4 horas + al iniciar sesion</td>
+                    <td>RAM, CPU, Temperatura, Procesos, Uptime</td>
+                    <td>Detectar problemas proactivamente</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- DIAGNOSTICO INTELIGENTE -->
+        <div class="section">
+            <h2>DIAGNOSTICO INTELIGENTE DE TEMPERATURA</h2>
+
+            <table>
+                <tr>
+                    <th>Temperatura CPU</th>
+                    <th>Estado</th>
+                    <th>Recomendacion</th>
+                </tr>
+                <tr>
+                    <td class="success">&lt; 65 C</td>
+                    <td class="success">OK</td>
+                    <td>Temperatura normal, equipo saludable</td>
+                </tr>
+                <tr>
+                    <td class="warning">65-74 C</td>
+                    <td class="warning">Normal-Alto</td>
+                    <td>Monitorear, posible acumulacion de polvo</td>
+                </tr>
+                <tr>
+                    <td style="color: orange;">75-84 C</td>
+                    <td style="color: orange;">Atencion</td>
+                    <td>Limpiar ventilador, considerar pasta termica</td>
+                </tr>
+                <tr>
+                    <td style="color: red;">&gt;= 85 C</td>
+                    <td style="color: red;">CRITICO</td>
+                    <td>URGENTE: Cambiar pasta termica y revisar ventilador</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- SEGURIDAD -->
+        <div class="section">
+            <h2>MODELO DE SEGURIDAD</h2>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h3>Usuario Normal</h3>
+                    <ul style="margin-left: 20px; color: #00cc00;">
+                        <li>Sin privilegios de administrador</li>
+                        <li>No puede instalar software</li>
+                        <li>No puede modificar sistema</li>
+                        <li>Auto-login habilitado</li>
+                    </ul>
+                </div>
+                <div class="feature-card">
+                    <h3>Usuario Soporte</h3>
+                    <ul style="margin-left: 20px; color: #00cc00;">
+                        <li>Privilegios de administrador</li>
+                        <li>Contrasena segura</li>
+                        <li>Solo para soporte tecnico</li>
+                        <li>Acceso completo al sistema</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- MUSICA Y EFECTOS -->
+        <div class="section">
+            <h2>EXPERIENCIA DE USUARIO</h2>
+            <p>El script incluye efectos de sonido inspirados en <span class="highlight">Saint Seiya</span> para hacer la configuracion mas amena:</p>
+
+            <ul style="margin-left: 30px; margin-top: 15px;">
+                <li><span class="code">Play-StepSound</span> - Sonido al completar cada paso</li>
+                <li><span class="code">Play-VictorySound</span> - Fanfarria al completar todo</li>
+                <li><span class="code">Play-PhoenixMelody</span> - Melodia del Ave Fenix antes del reinicio</li>
+                <li><span class="code">Start-BackgroundMelody</span> - Musica ambiental durante instalaciones largas</li>
+            </ul>
+
+            <p style="margin-top: 15px;">Arte ASCII del <span class="highlight">Ave Fenix</span> durante la cuenta regresiva de reinicio.</p>
+        </div>
+
+        <!-- ARCHIVOS -->
+        <div class="section">
+            <h2>ARCHIVOS DEL SISTEMA</h2>
+
+            <table>
+                <tr>
+                    <th>Archivo</th>
+                    <th>Ubicacion</th>
+                    <th>Funcion</th>
+                </tr>
+                <tr>
+                    <td class="code">ConfigurarEquipoHCG.ps1</td>
+                    <td>USB / Servidor</td>
+                    <td>Script principal de configuracion</td>
+                </tr>
+                <tr>
+                    <td class="code">ActualizarWindows11.ps1</td>
+                    <td>USB / Servidor</td>
+                    <td>Actualizador standalone con interfaz</td>
+                </tr>
+                <tr>
+                    <td class="code">report_ip.ps1</td>
+                    <td>C:\HCG_Logs\</td>
+                    <td>Script de reporte de IP</td>
+                </tr>
+                <tr>
+                    <td class="code">report_system.ps1</td>
+                    <td>C:\HCG_Logs\</td>
+                    <td>Script de reporte de sistema</td>
+                </tr>
+                <tr>
+                    <td class="code">report_diagnostico.ps1</td>
+                    <td>C:\HCG_Logs\</td>
+                    <td>Script de diagnostico de salud</td>
+                </tr>
+                <tr>
+                    <td class="code">auto_update.ps1</td>
+                    <td>C:\HCG_Logs\</td>
+                    <td>Script de actualizaciones cada 3 meses</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- FOOTER -->
+        <div class="footer">
+            <pre class="ascii-art">
+    ╔═══════════════════════════════════════════════════════════════╗
+    ║     HOSPITAL CIVIL DE GUADALAJARA - SOPORTE TECNICO iA        ║
+    ║                                                               ║
+    ║     "Los Caballeros de Informatica protegen este equipo"      ║
+    ╚═══════════════════════════════════════════════════════════════╝
+            </pre>
+            <p style="margin-top: 20px;">Documentacion generada: Febrero 2026</p>
+            <p>Desarrollado con Claude AI + PowerShell</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,4 +1,4 @@
-# =============================================================================
+﻿# =============================================================================
 # CONFIGURADOR DE EQUIPOS - HOSPITAL CIVIL FAA v4.0
 # =============================================================================
 # Se eleva automaticamente como Administrador si no lo es
@@ -3434,6 +3434,7 @@ try {
 
     $Script:SoftwareInstalado += "AutoUpdate 3M"
 }
+
 
 function Verify-Configuracion {
     param([string]$NumInventario)

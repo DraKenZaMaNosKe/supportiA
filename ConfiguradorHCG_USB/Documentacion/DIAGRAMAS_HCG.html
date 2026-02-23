@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagramas UML - ConfiguradorHCG - Hospital Civil de Guadalajara</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(90deg, #DAA520, #FFD700, #DAA520);
+            border-radius: 15px;
+            margin-bottom: 30px;
+            color: #1a1a2e;
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        .header p {
+            font-size: 1.2em;
+        }
+        .diagram-section {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border: 1px solid #DAA520;
+            page-break-inside: avoid;
+        }
+        .diagram-section h2 {
+            color: #FFD700;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #DAA520;
+            font-size: 1.8em;
+        }
+        .diagram-section h3 {
+            color: #00CED1;
+            margin: 15px 0;
+        }
+        .mermaid {
+            background: #ffffff;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 15px 0;
+            overflow-x: auto;
+        }
+        .description {
+            background: rgba(0,206,209,0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border-left: 4px solid #00CED1;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #888;
+            border-top: 1px solid #333;
+            margin-top: 30px;
+        }
+        @media print {
+            body {
+                background: white;
+                color: black;
+            }
+            .header {
+                background: #f0f0f0;
+                color: black;
+            }
+            .diagram-section {
+                border: 1px solid #ccc;
+                page-break-inside: avoid;
+            }
+            .diagram-section h2 {
+                color: #333;
+                border-bottom-color: #333;
+            }
+            .mermaid {
+                background: white;
+            }
+        }
+        .print-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #DAA520;
+            color: #1a1a2e;
+            border: none;
+            padding: 15px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: bold;
+            z-index: 1000;
+        }
+        .print-btn:hover {
+            background: #FFD700;
+        }
+        @media print {
+            .print-btn {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button class="print-btn" onclick="window.print()">Imprimir / Guardar PDF</button>
+
+    <div class="container">
+        <div class="header">
+            <h1>DIAGRAMAS UML - CONFIGURADOR HCG</h1>
+            <p>Hospital Civil de Guadalajara - Coordinacion General de Informatica</p>
+            <p>Sistema de Configuracion Automatizada de Equipos</p>
+        </div>
+
+        <!-- DIAGRAMA 1: CASOS DE USO -->
+        <div class="diagram-section">
+            <h2>1. Diagrama de Casos de Uso</h2>
+            <div class="mermaid">
+flowchart TB
+    subgraph Actores
+        TEC["Tecnico de Soporte"]
+        USER["Usuario Final"]
+        SYS["Sistema Windows"]
+        SERVER["Servidor Dedalus 10.2.1.17"]
+    end
+
+    subgraph Sistema_ConfiguradorHCG["Sistema ConfiguradorHCG"]
+        UC1[Configurar Equipo Nuevo]
+        UC2[Instalar Software Base]
+        UC3[Configurar Usuario Soporte]
+        UC4[Generar Wallpaper]
+        UC5[Registrar en Google Sheets]
+        UC6[Instalar Sincronizador]
+    end
+
+    subgraph Sincronizador_Dedalus["Sincronizador Dedalus"]
+        UC7[Ejecutar Sync al Inicio]
+        UC8[Sincronizar xHIS]
+        UC9[Actualizar Archivos]
+    end
+
+    TEC --> UC1
+    TEC --> UC2
+    TEC --> UC3
+    UC1 --> UC4
+    UC1 --> UC5
+    UC1 --> UC6
+    SYS --> UC7
+    UC7 --> SERVER
+    SERVER --> UC8
+    SERVER --> UC9
+    USER --> UC9
+            </div>
+            <div class="description">
+                <strong>Descripcion:</strong> Muestra los actores del sistema (Tecnico, Usuario, Windows, Servidor)
+                y las funcionalidades principales que ofrece el ConfiguradorHCG.
+            </div>
+        </div>
+
+        <!-- DIAGRAMA 2: FLUJO DE CONFIGURACION -->
+        <div class="diagram-section">
+            <h2>2. Diagrama de Flujo - Configuracion de Equipo</h2>
+            <div class="mermaid">
+flowchart TD
+    START([Inicio: Ejecutar ConfigurarEquipoHCG.ps1]) --> A1[Verificar permisos Admin]
+    A1 --> A2{Es Admin?}
+    A2 -->|No| A3[Auto-elevar permisos]
+    A3 --> A1
+    A2 -->|Si| A4[Cargar credenciales]
+    A4 --> A5[Conectar a servidores]
+
+    A5 --> B1[Solicitar numero inventario]
+    B1 --> B2[Obtener datos hardware]
+    B2 --> B3[Renombrar equipo PC-XXXXX]
+    B3 --> B4[Crear usuario Soporte]
+
+    B4 --> C1[Instalar .NET 3.5]
+    C1 --> C2[Instalar Office 2007]
+    C2 --> C3[Instalar Chrome]
+    C3 --> C4[Instalar Adobe Reader]
+    C4 --> C5[Instalar ESET]
+
+    C5 --> D1[Copiar Dedalus]
+    D1 --> D2[Configurar sincronizador Startup]
+    D2 --> D3[Crear accesos directos]
+
+    D3 --> E1[Generar wallpaper]
+    E1 --> E2[Generar reporte JSON]
+    E2 --> E3[Enviar a Google Sheets]
+    E3 --> E4[Instalar tareas programadas]
+    E4 --> ENDP([Fin: Equipo Configurado])
+
+    style START fill:#4CAF50,color:#fff
+    style ENDP fill:#4CAF50,color:#fff
+            </div>
+            <div class="description">
+                <strong>Descripcion:</strong> Flujo completo del proceso de configuracion de un equipo nuevo,
+                desde la verificacion de permisos hasta la finalizacion con el registro en Google Sheets.
+            </div>
+        </div>
+
+        <!-- DIAGRAMA 3: SECUENCIA SINCRONIZACION -->
+        <div class="diagram-section">
+            <h2>3. Diagrama de Secuencia - Sincronizacion Dedalus</h2>
+            <div class="mermaid">
+sequenceDiagram
+    autonumber
+    participant WIN as Windows
+    participant LNK as Startup Folder
+    participant NET as netlogon6.bat
+    participant SYNC as sync_xhis6.bat
+    participant SRV as Servidor 10.2.1.17
+    participant CS as Create Synchronicity.exe
+
+    WIN->>LNK: Inicia sesion
+    LNK->>NET: Ejecuta Dedalus Sync.lnk
+    NET->>SRV: net use /user:distribucion
+    SRV-->>NET: Conexion OK
+    NET->>NET: Copiar archivos host
+    NET->>SRV: Copiar sync_xhis6.bat
+    SRV-->>NET: Copiado a C:\Dedalus
+    NET->>SYNC: Ejecutar sync_xhis6.bat
+
+    SYNC->>SRV: Conectar
+    SYNC->>SRV: Copiar Create Synchronicity.exe
+
+    loop Para cada perfil
+        SYNC->>CS: Ejecutar perfil sync
+        CS->>SRV: Sincronizar archivos
+        SRV-->>CS: Archivos OK
+    end
+
+    SYNC->>SYNC: Crear accesos escritorio
+    SYNC-->>WIN: Sincronizacion completada
+            </div>
+            <div class="description">
+                <strong>Descripcion:</strong> Secuencia detallada de como funciona el sincronizador de Dedalus
+                al iniciar Windows, mostrando la interaccion entre los scripts y el servidor.
+            </div>
+        </div>
+
+        <!-- DIAGRAMA 4: COMPONENTES -->
+        <div class="diagram-section">
+            <h2>4. Diagrama de Componentes</h2>
+            <div class="mermaid">
+flowchart TB
+    subgraph LOCAL["EQUIPO LOCAL"]
+        subgraph Scripts["Scripts PowerShell"]
+            CFG[ConfigurarEquipoHCG.ps1]
+            REP[Reportes automaticos]
+        end
+        subgraph Dedalus["C:\Dedalus"]
+            XHIS[xHIS v6]
+            EHC[EHC]
+            EC[Escritorio Clinico]
+        end
+        subgraph Startup["Carpeta Startup"]
+            DLNK[Dedalus Sync.lnk]
+        end
+    end
+
+    subgraph SERVIDOR["SERVIDOR 10.2.1.17"]
+        NETLOG[netlogon6.bat]
+        SYNCSRV[sync_xhis6.bat]
+        CSEXE[Create Synchronicity.exe]
+    end
+
+    subgraph CLOUD["GOOGLE CLOUD"]
+        SHEETS[Google Sheets Inventario]
+        APPS[Apps Script v4]
+    end
+
+    CFG -->|Crea| DLNK
+    CFG -->|Instala| Dedalus
+    DLNK -->|Ejecuta| NETLOG
+    NETLOG -->|Ejecuta| SYNCSRV
+    SYNCSRV -->|Usa| CSEXE
+    REP -->|Actualiza| SHEETS
+    APPS -->|Formatea| SHEETS
+            </div>
+            <div class="description">
+                <strong>Descripcion:</strong> Arquitectura del sistema mostrando los componentes locales,
+                del servidor y de la nube, y como se relacionan entre si.
+            </div>
+        </div>
+
+        <!-- DIAGRAMA 5: ESTADOS -->
+        <div class="diagram-section">
+            <h2>5. Diagrama de Estados - Ciclo de Vida del Equipo</h2>
+            <div class="mermaid">
+stateDiagram-v2
+    [*] --> Nuevo: Equipo recibido
+    Nuevo --> Configurando: Ejecutar script
+
+    state Configurando {
+        [*] --> Preparacion
+        Preparacion --> Instalacion
+        Instalacion --> Finalizacion
+        Finalizacion --> [*]
+    }
+
+    Configurando --> Activo: Configuracion OK
+    Configurando --> Error: Fallo
+    Error --> Configurando: Reintentar
+
+    state Activo {
+        [*] --> Operativo
+        Operativo --> Sincronizando: Inicio Windows
+        Sincronizando --> Operativo: Sync OK
+        Operativo --> Reportando: Cada 3 horas
+        Reportando --> Operativo: Reporte enviado
+    }
+
+    Activo --> Mantenimiento: Problema
+    Mantenimiento --> Activo: Resuelto
+    Activo --> Baja: Dar de baja
+    Baja --> [*]
+            </div>
+            <div class="description">
+                <strong>Descripcion:</strong> Estados por los que pasa un equipo desde que se recibe nuevo
+                hasta que se da de baja, incluyendo los estados de operacion normal.
+            </div>
+        </div>
+
+        <!-- DIAGRAMA 6: REPORTES -->
+        <div class="diagram-section">
+            <h2>6. Diagrama de Flujo - Sistema de Reportes</h2>
+            <div class="mermaid">
+flowchart TD
+    START([Tarea Programada: Cada 3 horas]) --> A1[Ejecutar script reporte]
+    A1 --> A2[Delay aleatorio 0-180 seg]
+    A2 --> A3[Recopilar datos sistema]
+    A3 --> A4[CPU, RAM, Disco, Red]
+    A4 --> A5[Generar JSON]
+
+    A5 --> B1{Hay internet?}
+    B1 -->|Si| B2[Enviar a Google Sheets]
+    B1 -->|No| B3[Guardar en Pendientes]
+
+    B2 --> B4{Exito?}
+    B4 -->|Si| B5[Reporte enviado]
+    B4 -->|No| B6{Reintento < 3?}
+    B6 -->|Si| B7[Esperar 15-45 seg]
+    B7 --> B2
+    B6 -->|No| B3
+
+    B3 --> B8[Reintentar despues]
+    B5 --> ENDOK([OK])
+    B8 --> ENDPEND([Pendiente])
+
+    style START fill:#2196F3,color:#fff
+    style ENDOK fill:#4CAF50,color:#fff
+    style ENDPEND fill:#FF9800,color:#fff
+            </div>
+            <div class="description">
+                <strong>Descripcion:</strong> Sistema de reportes automaticos con manejo de reintentos
+                y delays aleatorios para evitar saturar el servidor con multiples equipos.
+            </div>
+        </div>
+
+        <!-- DIAGRAMA 7: DESPLIEGUE -->
+        <div class="diagram-section">
+            <h2>7. Diagrama de Despliegue - Infraestructura</h2>
+            <div class="mermaid">
+flowchart TB
+    subgraph HOSPITAL["RED HOSPITAL CIVIL DE GUADALAJARA"]
+        subgraph EQUIPOS["Equipos de Trabajo"]
+            PC1[PC-00001<br>Lenovo ThinkCentre]
+            PC2[PC-00002<br>Lenovo ThinkCentre]
+            PCN[PC-XXXXX<br>...]
+        end
+
+        subgraph SERVIDORES["Servidores Internos"]
+            SRV1[10.2.1.17<br>Distribucion Dedalus]
+            SRV2[10.2.1.13<br>Soporte FAA]
+        end
+
+        subgraph SOPORTE["Equipo de Soporte"]
+            TECH[Tecnico con<br>ConfiguradorHCG]
+        end
+    end
+
+    subgraph INTERNET["INTERNET"]
+        GOOGLE[Google Sheets<br>Inventario HCG]
+        NTP[time.windows.com]
+    end
+
+    TECH -->|Configura| PC1
+    TECH -->|Configura| PC2
+    PC1 <-->|Sincroniza| SRV1
+    PC2 <-->|Sincroniza| SRV1
+    PCN <-->|Sincroniza| SRV1
+    PC1 -->|Reporta| GOOGLE
+    PC2 -->|Reporta| GOOGLE
+    PC1 -->|Sync hora| NTP
+            </div>
+            <div class="description">
+                <strong>Descripcion:</strong> Infraestructura de red del Hospital Civil de Guadalajara
+                mostrando los equipos, servidores internos y servicios en la nube.
+            </div>
+        </div>
+
+        <!-- DIAGRAMA 8: CLASES -->
+        <div class="diagram-section">
+            <h2>8. Diagrama de Clases - Estructura de Datos</h2>
+            <div class="mermaid">
+classDiagram
+    class EquipoHCG {
+        +String NumInventario
+        +String NombrePC
+        +String NumeroSerie
+        +String DireccionMAC
+        +String ProductKey
+        +String DireccionIP
+        +DateTime FechaConfiguracion
+        +String Estado
+        +configurar()
+        +generarReporte()
+        +sincronizar()
+    }
+
+    class ReporteJSON {
+        +String Hostname
+        +String SerialNumber
+        +String MACAddress
+        +String IPAddress
+        +Object SystemInfo
+        +DateTime Timestamp
+        +generar()
+        +enviar()
+    }
+
+    class Sincronizador {
+        +String RutaServidor
+        +String Usuario
+        +Array Perfiles
+        +conectar()
+        +sincronizarPerfil()
+        +desconectar()
+    }
+
+    class GoogleSheets {
+        +String SheetID
+        +String WebAppURL
+        +registrarEquipo()
+        +actualizarEstado()
+    }
+
+    EquipoHCG "1" --> "*" ReporteJSON : genera
+    EquipoHCG "1" --> "1" Sincronizador : usa
+    ReporteJSON "*" --> "1" GoogleSheets : envia
+    EquipoHCG "1" --> "1" GoogleSheets : registrado
+            </div>
+            <div class="description">
+                <strong>Descripcion:</strong> Estructura de datos del sistema mostrando las clases principales
+                y sus relaciones (EquipoHCG, ReporteJSON, Sincronizador, GoogleSheets).
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Hospital Civil de Guadalajara - Coordinacion General de Informatica - Ext. 54425</p>
+            <p>Sistema ConfiguradorHCG v2.0 - Febrero 2026</p>
+            <p><em>Para guardar como PDF: Click en "Imprimir / Guardar PDF" o Ctrl+P y seleccionar "Guardar como PDF"</em></p>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            securityLevel: 'loose',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            },
+            sequence: {
+                useMaxWidth: true,
+                showSequenceNumbers: true
+            }
+        });
+    </script>
+</body>
+</html>
