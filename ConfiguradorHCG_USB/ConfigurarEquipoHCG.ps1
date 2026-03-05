@@ -1,4 +1,4 @@
-# =============================================================================
+﻿# =============================================================================
 # CONFIGURADOR DE EQUIPOS - HOSPITAL CIVIL FAA v4.0
 # =============================================================================
 # Se eleva automaticamente como Administrador si no lo es
@@ -484,6 +484,105 @@ function Play-VictorySound {
         [Console]::Beep(1319, 150) # Mi alto
         [Console]::Beep(1568, 400) # Sol alto (final)
     } catch {}
+}
+
+function Play-PhoenixMelody {
+    # Melodia del Ave Fenix - Ikki (epica pero suave)
+    # Inspirada en "Phoenix Ikki Theme" - notas ascendentes como el renacimiento
+    try {
+        # Intro suave - el fenix despierta
+        [Console]::Beep(330, 300)   # Mi - despertar
+        Start-Sleep -Milliseconds 100
+        [Console]::Beep(392, 300)   # Sol
+        [Console]::Beep(440, 400)   # La - ascenso
+        Start-Sleep -Milliseconds 150
+
+        # Crecimiento - las alas se abren
+        [Console]::Beep(523, 350)   # Do5 - fuerza
+        [Console]::Beep(587, 300)   # Re5
+        [Console]::Beep(659, 500)   # Mi5 - vuelo
+        Start-Sleep -Milliseconds 200
+
+        # Climax suave - el fenix renace
+        [Console]::Beep(784, 400)   # Sol5 - majestuoso
+        [Console]::Beep(880, 350)   # La5
+        [Console]::Beep(784, 300)   # Sol5 - descenso suave
+        [Console]::Beep(659, 600)   # Mi5 - paz
+        Start-Sleep -Milliseconds 300
+
+        # Final - alas extendidas
+        [Console]::Beep(523, 400)   # Do5
+        [Console]::Beep(659, 500)   # Mi5
+        [Console]::Beep(784, 800)   # Sol5 - sostenido final
+    } catch {}
+}
+
+function Show-PhoenixRebootCountdown {
+    param([int]$Seconds = 60)
+
+    Clear-Host
+
+    $phoenix = @'
+
+                           . - ~ ~ ~ - .
+                       . '       _      ' .
+                      /        .'         \
+                     /        /             \
+                    |        |   .-'''-.    |
+                    |        |  /   _   \   |
+                     \       | |   (_)   | /
+                      \      |  \       / /
+                       \      \  '-----' /
+                        \      '.     .'/
+                         \   .  '---'   /
+                          \ / \       / \
+                      .-'  |   '-----'   '.
+                    .'      \             /
+                   /     .-' '._     _.' '-.
+                  /    .'       '---'       \
+                 /   .'                       \
+                |  .'      A V E   F E N I X   '.
+                |.'                              \
+               .'     EL SISTEMA RENACERA...      '.
+              /                                     \
+             |      *  *  *  *  *  *  *  *  *  *     |
+              \                                     /
+               '.                                 .'
+                 ' .    Hospital Civil GDL    . '
+                    ' - . _   _ . - '
+
+'@
+
+    Write-Host $phoenix -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  ================================================================" -ForegroundColor Yellow
+    Write-Host "  |     REINICIO AUTOMATICO - ACTUALIZACIONES SE APLICARAN      |" -ForegroundColor Yellow
+    Write-Host "  |                 NO APAGUES EL EQUIPO                        |" -ForegroundColor Yellow
+    Write-Host "  ================================================================" -ForegroundColor Yellow
+    Write-Host ""
+
+    # Tocar melodia del Fenix
+    Play-PhoenixMelody
+
+    # Cuenta regresiva con beeps suaves
+    for ($i = $Seconds; $i -ge 1; $i--) {
+        $bar = "=" * [math]::Floor((($Seconds - $i) / $Seconds) * 40)
+        $space = " " * (40 - $bar.Length)
+
+        Write-Host "`r  [$bar$space] $i segundos para reiniciar...   " -NoNewline -ForegroundColor Cyan
+
+        # Beep cada 10 segundos, y cada segundo en los ultimos 5
+        if ($i -le 5 -or $i % 10 -eq 0) {
+            try { [Console]::Beep(600 + (($Seconds - $i) * 10), 100) } catch {}
+        }
+
+        Start-Sleep -Seconds 1
+    }
+
+    Write-Host ""
+    Write-Host ""
+    Write-Host "  *** EL FENIX RENACE - REINICIANDO AHORA ***" -ForegroundColor Red
+    Write-Host ""
 }
 
 function Show-ProgressCosmos {
@@ -2342,7 +2441,7 @@ function Install-Antivirus {
     }
 
     # Buscar instalador con nombre exacto
-    $Instalador = "$RutaAntivirus\PROTECT_Installer_x64_es_CL 2.exe"
+    $Instalador = "$RutaAntivirus\PROTECT_Installer_x64_es_CL PC.exe"
     if (-not (Test-Path $Instalador)) {
         $Instalador = Find-Installer -Carpeta $RutaAntivirus -Filtro "*.exe"
     }
@@ -2593,106 +2692,165 @@ function Install-AllWindowsUpdates {
     Start-BackgroundMelody -Mensaje "Melodia del Santuario - Actualizando Windows..."
 
     try {
-        # Metodo 1: Usar Windows Update via COM Object (nativo, no requiere modulos)
-        Write-Log "Buscando actualizaciones disponibles..." "INFO"
+        # Loop de actualizaciones: buscar+descargar+instalar hasta que no queden pendientes
+        $MaxRondas = 5
+        $Ronda = 0
+        $TotalInstaladas = 0
+        $NecesitaReboot = $false
 
         $UpdateSession = New-Object -ComObject Microsoft.Update.Session
-        $UpdateSearcher = $UpdateSession.CreateUpdateSearcher()
 
-        Write-Host "  Escaneando actualizaciones (puede tardar varios minutos)..." -ForegroundColor Yellow
-        $SearchResult = $UpdateSearcher.Search("IsInstalled=0 and Type='Software' and IsHidden=0")
+        do {
+            $Ronda++
 
-        $UpdatesToInstall = $SearchResult.Updates
-        $TotalUpdates = $UpdatesToInstall.Count
-
-        if ($TotalUpdates -eq 0) {
-            Write-Log "No hay actualizaciones pendientes - El sistema esta al dia" "OK"
-            Stop-BackgroundMelody
-            $Script:SoftwareInstalado += "Windows Actualizado"
-            return
-        }
-
-        Write-Log "Se encontraron $TotalUpdates actualizaciones pendientes" "INFO"
-        Write-Host ""
-
-        # Mostrar lista de actualizaciones
-        $UpdateCounter = 0
-        foreach ($Update in $UpdatesToInstall) {
-            $UpdateCounter++
-            $SizeMB = [math]::Round($Update.MaxDownloadSize / 1MB, 1)
-            Write-Host "  [$UpdateCounter/$TotalUpdates] $($Update.Title) ($SizeMB MB)" -ForegroundColor Gray
-        }
-        Write-Host ""
-
-        # Crear coleccion para descargar
-        $UpdatesCollection = New-Object -ComObject Microsoft.Update.UpdateColl
-        foreach ($Update in $UpdatesToInstall) {
-            $UpdatesCollection.Add($Update) | Out-Null
-        }
-
-        # Descargar actualizaciones
-        Write-Log "Descargando $TotalUpdates actualizaciones..." "INFO"
-        $Downloader = $UpdateSession.CreateUpdateDownloader()
-        $Downloader.Updates = $UpdatesCollection
-
-        try {
-            $DownloadResult = $Downloader.Download()
-            if ($DownloadResult.ResultCode -eq 2) {
-                Write-Log "Descarga completada exitosamente" "OK"
-            } else {
-                Write-Log "Descarga completada con codigo: $($DownloadResult.ResultCode)" "WARN"
-            }
-        } catch {
-            Write-Log "Error en descarga: $($_.Exception.Message)" "WARN"
-        }
-
-        # Instalar actualizaciones
-        Write-Log "Instalando $TotalUpdates actualizaciones..." "INFO"
-        Write-Host "  Este proceso puede tardar 15-45 minutos. NO apagues el equipo." -ForegroundColor Yellow
-        Write-Host ""
-
-        $Installer = $UpdateSession.CreateUpdateInstaller()
-        $Installer.Updates = $UpdatesCollection
-
-        try {
-            $InstallResult = $Installer.Install()
-
-            $Installed = 0
-            $Failed = 0
-            $RebootRequired = $false
-
-            for ($i = 0; $i -lt $UpdatesCollection.Count; $i++) {
-                $UpdateResult = $InstallResult.GetUpdateResult($i)
-                if ($UpdateResult.ResultCode -eq 2) {
-                    $Installed++
-                } else {
-                    $Failed++
-                }
-                if ($UpdateResult.RebootRequired) {
-                    $RebootRequired = $true
-                }
-            }
-
-            Write-Host ""
-            Write-Log "$Installed actualizaciones instaladas correctamente" "OK"
-            if ($Failed -gt 0) {
-                Write-Log "$Failed actualizaciones fallaron (se pueden reintentar despues)" "WARN"
-            }
-
-            if ($RebootRequired) {
+            if ($Ronda -gt 1) {
                 Write-Host ""
-                Write-Host "  ============================================================" -ForegroundColor Yellow
-                Write-Host "  |  REINICIO REQUERIDO                                      |" -ForegroundColor Yellow
-                Write-Host "  |  Algunas actualizaciones se completaran tras reiniciar   |" -ForegroundColor Yellow
-                Write-Host "  ============================================================" -ForegroundColor Yellow
-                $Script:SoftwareInstalado += "Updates ($Installed - Reinicio pendiente)"
-            } else {
-                $Script:SoftwareInstalado += "Updates ($Installed instaladas)"
+                Write-Host "  ============================================================" -ForegroundColor Magenta
+                Write-Host "  |  RONDA $Ronda de actualizaciones - Buscando nuevas cadenas...  |" -ForegroundColor Magenta
+                Write-Host "  ============================================================" -ForegroundColor Magenta
+                Write-Host ""
             }
 
-        } catch {
-            Write-Log "Error durante instalacion: $($_.Exception.Message)" "WARN"
-            $Script:SoftwareInstalado += "Updates (parcial)"
+            Write-Log "Ronda $Ronda/$MaxRondas - Buscando actualizaciones disponibles..." "INFO"
+
+            $UpdateSearcher = $UpdateSession.CreateUpdateSearcher()
+            Write-Host "  Escaneando actualizaciones (puede tardar varios minutos)..." -ForegroundColor Yellow
+            $SearchResult = $UpdateSearcher.Search("IsInstalled=0 and Type='Software' and IsHidden=0")
+
+            # Pre-aceptar EULAs de TODAS las updates encontradas
+            $EulaCount = 0
+            foreach ($upd in $SearchResult.Updates) {
+                if (-not $upd.EulaAccepted) {
+                    try { $upd.AcceptEula(); $EulaCount++ } catch {}
+                }
+            }
+            if ($EulaCount -gt 0) {
+                Write-Log "EULAs pre-aceptadas: $EulaCount actualizaciones" "OK"
+            }
+
+            $UpdatesToInstall = $SearchResult.Updates
+            $TotalUpdates = $UpdatesToInstall.Count
+
+            if ($TotalUpdates -eq 0) {
+                if ($Ronda -eq 1) {
+                    Write-Log "No hay actualizaciones pendientes - El sistema esta al dia" "OK"
+                    Stop-BackgroundMelody
+                    $Script:SoftwareInstalado += "Windows Actualizado"
+                    return
+                }
+                Write-Log "Ronda $Ronda - No hay mas actualizaciones pendientes" "OK"
+                break
+            }
+
+            Write-Log "Ronda $Ronda - Se encontraron $TotalUpdates actualizaciones pendientes" "INFO"
+            Write-Host ""
+
+            # Mostrar lista de actualizaciones
+            $UpdateCounter = 0
+            foreach ($Update in $UpdatesToInstall) {
+                $UpdateCounter++
+                $SizeMB = [math]::Round($Update.MaxDownloadSize / 1MB, 1)
+                Write-Host "  [$UpdateCounter/$TotalUpdates] $($Update.Title) ($SizeMB MB)" -ForegroundColor Gray
+            }
+            Write-Host ""
+
+            # Crear coleccion para descargar (aceptar EULA automaticamente)
+            $UpdatesCollection = New-Object -ComObject Microsoft.Update.UpdateColl
+            foreach ($Update in $UpdatesToInstall) {
+                try {
+                    if (-not $Update.EulaAccepted) {
+                        $Update.AcceptEula()
+                        Write-Log "EULA aceptada automaticamente: $($Update.Title)" "OK"
+                    }
+                } catch {
+                    Write-Log "No se pudo aceptar EULA: $($Update.Title)" "WARN"
+                }
+                $UpdatesCollection.Add($Update) | Out-Null
+            }
+
+            # Descargar actualizaciones
+            Write-Log "Ronda $Ronda - Descargando $TotalUpdates actualizaciones..." "INFO"
+            $Downloader = $UpdateSession.CreateUpdateDownloader()
+            $Downloader.Updates = $UpdatesCollection
+
+            try {
+                $DownloadResult = $Downloader.Download()
+                if ($DownloadResult.ResultCode -eq 2) {
+                    Write-Log "Descarga completada exitosamente" "OK"
+                } else {
+                    Write-Log "Descarga completada con codigo: $($DownloadResult.ResultCode)" "WARN"
+                }
+            } catch {
+                Write-Log "Error en descarga: $($_.Exception.Message)" "WARN"
+            }
+
+            # Instalar actualizaciones
+            Write-Log "Ronda $Ronda - Instalando $TotalUpdates actualizaciones..." "INFO"
+            Write-Host "  Este proceso puede tardar 15-45 minutos. NO apagues el equipo." -ForegroundColor Yellow
+            Write-Host ""
+
+            $Installer = $UpdateSession.CreateUpdateInstaller()
+            $Installer.Updates = $UpdatesCollection
+
+            try {
+                $InstallResult = $Installer.Install()
+
+                $RondaInstaladas = 0
+                $RondaFallidas = 0
+                $RondaReboot = $false
+
+                for ($i = 0; $i -lt $UpdatesCollection.Count; $i++) {
+                    $UpdateResult = $InstallResult.GetUpdateResult($i)
+                    if ($UpdateResult.ResultCode -eq 2) {
+                        $RondaInstaladas++
+                    } else {
+                        $RondaFallidas++
+                    }
+                    if ($UpdateResult.RebootRequired) {
+                        $RondaReboot = $true
+                    }
+                }
+
+                $TotalInstaladas += $RondaInstaladas
+
+                Write-Host ""
+                Write-Log "Ronda $Ronda - $RondaInstaladas actualizaciones instaladas correctamente" "OK"
+                if ($RondaFallidas -gt 0) {
+                    Write-Log "Ronda $Ronda - $RondaFallidas actualizaciones fallaron" "WARN"
+                }
+
+                if ($RondaReboot) {
+                    $NecesitaReboot = $true
+                    # Si TODAS las updates de esta ronda requieren reboot, no tiene sentido seguir
+                    if ($RondaInstaladas -eq 0 -or ($RondaReboot -and $RondaInstaladas -le $RondaFallidas)) {
+                        Write-Log "Ronda $Ronda - Reinicio requerido antes de poder continuar" "INFO"
+                        break
+                    }
+                }
+
+            } catch {
+                Write-Log "Error durante instalacion en ronda ${Ronda}: $($_.Exception.Message)" "WARN"
+                break
+            }
+
+        } while ($Ronda -lt $MaxRondas)
+
+        # Resumen final del loop
+        Write-Host ""
+        if ($TotalInstaladas -gt 0) {
+            Write-Log "TOTAL: $TotalInstaladas actualizaciones instaladas en $Ronda ronda(s)" "OK"
+        }
+
+        if ($NecesitaReboot) {
+            Write-Host ""
+            Write-Host "  ============================================================" -ForegroundColor Yellow
+            Write-Host "  |  REINICIO REQUERIDO                                      |" -ForegroundColor Yellow
+            Write-Host "  |  Algunas actualizaciones se completaran tras reiniciar   |" -ForegroundColor Yellow
+            Write-Host "  |  Despues ejecuta EJECUTAR_ActualizarWindows.bat          |" -ForegroundColor Yellow
+            Write-Host "  ============================================================" -ForegroundColor Yellow
+            $Script:SoftwareInstalado += "Updates ($TotalInstaladas - Reinicio pendiente)"
+        } else {
+            $Script:SoftwareInstalado += "Updates ($TotalInstaladas instaladas)"
         }
 
     } catch {
@@ -2830,11 +2988,14 @@ try {
             -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
             -MultipleInstances IgnoreNew
 
+        $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest -LogonType ServiceAccount
+
         Register-ScheduledTask -TaskName $TaskName -Action $Action `
             -Trigger @($TriggerLogon, $TriggerRepeat) `
             -Settings $Settings `
+            -Principal $Principal `
             -Description "HCG - Reporte automatico de IP cada 3 horas" `
-            -RunLevel Limited -Force | Out-Null
+            -Force | Out-Null
 
         if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
             Write-Log "Tarea programada '$TaskName' creada (cada 3 horas + al iniciar sesion)" "OK"
@@ -3027,11 +3188,14 @@ try {
             -ExecutionTimeLimit (New-TimeSpan -Minutes 10) `
             -MultipleInstances IgnoreNew
 
+        $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest -LogonType ServiceAccount
+
         Register-ScheduledTask -TaskName $TaskName -Action $Action `
             -Trigger $TriggerLogon `
             -Settings $Settings `
+            -Principal $Principal `
             -Description "HCG - Reporte de sistema y limpieza al iniciar sesion" `
-            -RunLevel Limited -Force | Out-Null
+            -Force | Out-Null
 
         if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
             Write-Log "Tarea programada '$TaskName' creada (al iniciar sesion, delay 2 min)" "OK"
@@ -3116,18 +3280,59 @@ try {
     $DiscoLibreGB = if ($Disco) { [math]::Round($Disco.FreeSpace / 1GB, 1) } else { 0 }
     $DiscoTotalGB = if ($Disco) { [math]::Round($Disco.Size / 1GB, 0) } else { 0 }
 
+    # --- TEMPERATURA DEL CPU ---
+    $TempCPU = 0
+    try {
+        # Metodo 1: MSAcpi_ThermalZoneTemperature (mas comun)
+        $ThermalZone = Get-CimInstance -Namespace "root/WMI" -ClassName "MSAcpi_ThermalZoneTemperature" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($ThermalZone -and $ThermalZone.CurrentTemperature) {
+            $TempCPU = [math]::Round(($ThermalZone.CurrentTemperature - 2732) / 10, 0)
+        }
+    } catch {}
+    # Si no funciono, intentar con Win32_TemperatureProbe
+    if ($TempCPU -le 0 -or $TempCPU -gt 120) {
+        try {
+            $TempProbe = Get-CimInstance -ClassName Win32_TemperatureProbe -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($TempProbe -and $TempProbe.CurrentReading) {
+                $TempCPU = [math]::Round($TempProbe.CurrentReading / 10, 0)
+            }
+        } catch {}
+    }
+    # Validar rango razonable
+    if ($TempCPU -lt 20 -or $TempCPU -gt 110) { $TempCPU = 0 }
+
     # --- Estado ---
     $Estado = "OK"; $Recomendaciones = @()
-    if ($RAMPct -gt 85) {
-        $Estado = "Critico"; $Recomendaciones += "RAM critica ($RAMPct%). Se recomienda ampliar memoria"
-    } elseif ($RAMPct -gt 70) {
-        $Estado = "Atencion"; $Recomendaciones += "RAM elevada ($RAMPct%). Monitorear uso. Considerar ampliacion"
+
+    # Diagnostico de TEMPERATURA (prioridad alta)
+    if ($TempCPU -gt 0) {
+        if ($TempCPU -ge 85) {
+            $Estado = "Critico"
+            $Recomendaciones += "URGENTE: CPU a ${TempCPU}C! Revisar pasta termica y ventilador inmediatamente"
+        } elseif ($TempCPU -ge 75) {
+            if ($Estado -ne "Critico") { $Estado = "Atencion" }
+            $Recomendaciones += "CALIENTE: CPU a ${TempCPU}C. Limpiar ventilador. Posible cambio de pasta termica"
+        } elseif ($TempCPU -ge 65) {
+            $Recomendaciones += "CPU a ${TempCPU}C (normal-alto). Monitorear"
+        } else {
+            $Recomendaciones += "CPU a ${TempCPU}C (temperatura OK)"
+        }
     } else {
-        $Recomendaciones += "Equipo operando con recursos suficientes"
+        $Recomendaciones += "Temp CPU: No disponible (sensor no accesible)"
     }
-    if ($ChromeMB -gt 1500) { $Recomendaciones += "Chrome consumiendo $ChromeMB MB. Reducir pestanas" }
-    if ($UptimeDias -gt 15) { $Recomendaciones += "Sin reinicio hace $UptimeDias dias. Reiniciar pronto" }
-    if ($DiscoLibreGB -lt 20) { $Recomendaciones += "Disco bajo: $DiscoLibreGB GB libres. Liberar espacio" }
+
+    # Diagnostico de RAM
+    if ($RAMPct -gt 85) {
+        $Estado = "Critico"; $Recomendaciones += "RAM critica ($RAMPct%). Ampliar memoria"
+    } elseif ($RAMPct -gt 70) {
+        if ($Estado -ne "Critico") { $Estado = "Atencion" }
+        $Recomendaciones += "RAM elevada ($RAMPct%). Considerar ampliacion"
+    }
+
+    # Otros diagnosticos
+    if ($ChromeMB -gt 1500) { $Recomendaciones += "Chrome: $ChromeMB MB. Reducir pestanas" }
+    if ($UptimeDias -gt 15) { $Recomendaciones += "Uptime: $UptimeDias dias. Reiniciar pronto" }
+    if ($DiscoLibreGB -lt 20) { $Recomendaciones += "Disco: $DiscoLibreGB GB libres. Liberar espacio" }
     $RecomendacionStr = $Recomendaciones -join " | "
 
     $Body = @{
@@ -3178,11 +3383,14 @@ try {
             -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
             -MultipleInstances IgnoreNew
 
+        $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest -LogonType ServiceAccount
+
         Register-ScheduledTask -TaskName $TaskName -Action $Action `
             -Trigger @($TriggerLogon, $TriggerRepeat) `
             -Settings $Settings `
+            -Principal $Principal `
             -Description "HCG - Diagnostico de salud cada 4 horas" `
-            -RunLevel Limited -Force | Out-Null
+            -Force | Out-Null
 
         if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
             Write-Log "Tarea programada '$TaskName' creada (cada 4 horas + al iniciar sesion, delay 3 min)" "OK"
@@ -3195,6 +3403,329 @@ try {
 
     $Script:SoftwareInstalado += "Reporte Diagnostico"
 }
+
+function Install-AutoUpdate {
+    Write-StepHeader -Step 25.5 -Title "CONFIGURANDO ACTUALIZACIONES AUTOMATICAS (CADA 3 MESES)"
+    Show-ProgressCosmos -Step 25
+
+    # Crear script simple que usa usoclient (comando nativo de Windows)
+    $ScriptPath = "C:\HCG_Logs\auto_update.ps1"
+
+    $ScriptContent = @'
+# HCG - Actualizaciones automaticas cada 3 meses
+# Usa usoclient (comando nativo de Windows) - seguro y estable
+$ErrorActionPreference = "SilentlyContinue"
+
+# Log
+$LogFile = "C:\HCG_Logs\auto_update.log"
+$Date = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+Add-Content -Path $LogFile -Value "[$Date] Iniciando actualizaciones automaticas..."
+
+try {
+    # Buscar actualizaciones
+    Start-Process -FilePath "usoclient.exe" -ArgumentList "StartScan" -Wait -WindowStyle Hidden
+    Start-Sleep -Seconds 60
+
+    # Descargar actualizaciones
+    Start-Process -FilePath "usoclient.exe" -ArgumentList "StartDownload" -Wait -WindowStyle Hidden
+    Start-Sleep -Seconds 120
+
+    # Instalar actualizaciones
+    Start-Process -FilePath "usoclient.exe" -ArgumentList "StartInstall" -Wait -WindowStyle Hidden
+
+    Add-Content -Path $LogFile -Value "[$Date] Actualizaciones completadas"
+
+    # Si hay reinicio pendiente, reiniciar en 5 minutos
+    $RebootPending = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired" -ErrorAction SilentlyContinue)
+    if ($RebootPending) {
+        Add-Content -Path $LogFile -Value "[$Date] Reinicio programado en 5 minutos"
+        shutdown /r /t 300 /c "Actualizaciones de Windows instaladas. El equipo se reiniciara en 5 minutos."
+    }
+} catch {
+    Add-Content -Path $LogFile -Value "[$Date] Error: $($_.Exception.Message)"
+}
+'@
+
+    Initialize-HCGLogsFolder | Out-Null
+    $ScriptContent | Out-File -FilePath $ScriptPath -Encoding UTF8 -Force
+    Write-Log "Script de actualizaciones automaticas creado" "OK"
+
+    # Crear launcher VBS para ejecucion oculta
+    $VbsLauncher = New-HiddenLauncher -PowerShellScriptPath $ScriptPath
+    Write-Log "Launcher VBS creado" "OK"
+
+    # Crear tarea programada: cada 3 meses, a las 2:00 AM
+    $TaskName = "HCG_AutoUpdate"
+
+    try {
+        # Eliminar tarea anterior si existe
+        Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
+
+        $Action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$VbsLauncher`""
+
+        # Trigger: cada 3 meses (90 dias), a las 2:00 AM
+        $Trigger = New-ScheduledTaskTrigger -Daily -At "02:00AM" -DaysInterval 90
+
+        $Settings = New-ScheduledTaskSettingsSet `
+            -AllowStartIfOnBatteries `
+            -DontStopIfGoingOnBatteries `
+            -StartWhenAvailable `
+            -WakeToRun
+
+        $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
+
+        Register-ScheduledTask -TaskName $TaskName `
+            -Action $Action `
+            -Trigger $Trigger `
+            -Settings $Settings `
+            -Principal $Principal `
+            -Description "HCG - Actualizaciones automaticas de Windows cada 3 meses" `
+            -Force | Out-Null
+
+        if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
+            Write-Log "Tarea programada '$TaskName' creada (cada 3 meses a las 2:00 AM)" "OK"
+        } else {
+            Write-Log "No se pudo verificar la tarea programada" "WARN"
+        }
+    } catch {
+        Write-Log "Error al crear tarea programada: $($_.Exception.Message)" "WARN"
+    }
+
+    $Script:SoftwareInstalado += "AutoUpdate 3M"
+}
+
+function Register-PostRebootUpdateLoop {
+    Write-Log "Registrando loop de actualizaciones post-reinicio..." "INFO"
+
+    $ScriptPath = "C:\HCG_Logs\update_loop.ps1"
+    $CounterPath = "C:\HCG_Logs\update_loop_count.txt"
+    $LogFile = "C:\HCG_Logs\update_loop.log"
+    $TaskName = "HCG_UpdateLoop"
+    $MaxReboots = 4
+
+    $ScriptContent = @"
+# HCG - Loop de actualizaciones post-reinicio
+# Se ejecuta como SYSTEM tras cada reinicio hasta que no queden updates
+# Maximo $MaxReboots ciclos de reinicio
+
+`$LogFile = "$LogFile"
+`$CounterPath = "$CounterPath"
+`$FailedPath = "C:\HCG_Logs\update_loop_failed.txt"
+`$TaskName = "$TaskName"
+`$MaxReboots = $MaxReboots
+
+function Write-UpdateLog(`$Msg) {
+    `$Date = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    Add-Content -Path `$LogFile -Value "[`$Date] `$Msg"
+}
+
+function Cleanup-Task {
+    Unregister-ScheduledTask -TaskName `$TaskName -Confirm:`$false -ErrorAction SilentlyContinue
+    Remove-Item `$CounterPath -Force -ErrorAction SilentlyContinue
+    Remove-Item `$FailedPath -Force -ErrorAction SilentlyContinue
+    Remove-Item `$MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
+    `$VbsPath = `$MyInvocation.MyCommand.Path -replace '\.ps1$', '_launcher.vbs'
+    Remove-Item `$VbsPath -Force -ErrorAction SilentlyContinue
+}
+
+# Cargar historial de KBs que han fallado en iteraciones previas
+`$FailedKBs = @{}
+if (Test-Path `$FailedPath) {
+    Get-Content `$FailedPath -ErrorAction SilentlyContinue | ForEach-Object {
+        `$parts = `$_ -split '='
+        if (`$parts.Count -eq 2) { `$FailedKBs[`$parts[0]] = [int]`$parts[1] }
+    }
+}
+
+try {
+    Write-UpdateLog "=== Inicio del loop de actualizaciones ==="
+
+    # Leer contador de iteraciones
+    `$Iteration = 0
+    if (Test-Path `$CounterPath) {
+        `$Iteration = [int](Get-Content `$CounterPath -ErrorAction SilentlyContinue)
+    }
+    `$Iteration++
+    Write-UpdateLog "Iteracion: `$Iteration de `$MaxReboots"
+
+    # Si excedemos el maximo, auto-eliminarnos
+    if (`$Iteration -gt `$MaxReboots) {
+        Write-UpdateLog "Maximo de `$MaxReboots iteraciones alcanzado. Limpiando..."
+        Cleanup-Task
+        Write-UpdateLog "Loop finalizado por limite de iteraciones."
+        exit
+    }
+
+    # Guardar contador actualizado
+    `$Iteration | Out-File -FilePath `$CounterPath -Force
+
+    # Buscar actualizaciones pendientes
+    Write-UpdateLog "Buscando actualizaciones pendientes..."
+    `$UpdateSession = New-Object -ComObject Microsoft.Update.Session
+    `$Searcher = `$UpdateSession.CreateUpdateSearcher()
+    `$SearchResult = `$Searcher.Search("IsInstalled=0 and Type='Software' and IsHidden=0")
+
+    `$PendingUpdates = `$SearchResult.Updates.Count
+    Write-UpdateLog "Actualizaciones pendientes encontradas: `$PendingUpdates"
+
+    if (`$PendingUpdates -eq 0) {
+        Write-UpdateLog "No hay mas actualizaciones. Equipo 100% actualizado!"
+        Cleanup-Task
+        Write-UpdateLog "Loop completado exitosamente. Tarea y archivos eliminados."
+        exit
+    }
+
+    # Crear coleccion: aceptar EULA y filtrar atascadas
+    Write-UpdateLog "Preparando actualizaciones (aceptando licencias automaticamente)..."
+    `$Collection = New-Object -ComObject Microsoft.Update.UpdateColl
+    `$Omitidas = 0
+    foreach (`$Update in `$SearchResult.Updates) {
+        `$KB = ""
+        if (`$Update.KBArticleIDs.Count -gt 0) { `$KB = `$Update.KBArticleIDs.Item(0) }
+        if (-not `$KB) { `$KB = `$Update.Title }
+
+        # Si esta KB ya fallo 2+ veces, ocultarla
+        if (`$FailedKBs.ContainsKey(`$KB) -and `$FailedKBs[`$KB] -ge 2) {
+            Write-UpdateLog "  OMITIDA (fallo `$(`$FailedKBs[`$KB])x): `$(`$Update.Title)"
+            try { `$Update.IsHidden = `$true } catch {}
+            `$Omitidas++
+            continue
+        }
+
+        # Aceptar EULA automaticamente (critico para Office y otros)
+        try {
+            if (-not `$Update.EulaAccepted) {
+                `$Update.AcceptEula()
+                Write-UpdateLog "  EULA aceptada: `$(`$Update.Title)"
+            }
+        } catch {
+            Write-UpdateLog "  No se pudo aceptar EULA: `$(`$Update.Title)"
+        }
+
+        `$Collection.Add(`$Update) | Out-Null
+        Write-UpdateLog "  - `$(`$Update.Title)"
+    }
+
+    if (`$Omitidas -gt 0) {
+        Write-UpdateLog "`$Omitidas actualizaciones omitidas por fallos repetidos (ocultadas)"
+    }
+
+    if (`$Collection.Count -eq 0) {
+        Write-UpdateLog "No quedan actualizaciones instalables. Limpiando..."
+        Cleanup-Task
+        Write-UpdateLog "Loop completado. Tarea y archivos eliminados."
+        exit
+    }
+
+    # Descargar
+    Write-UpdateLog "Descargando `$(`$Collection.Count) actualizaciones..."
+    `$Downloader = `$UpdateSession.CreateUpdateDownloader()
+    `$Downloader.Updates = `$Collection
+    `$DownloadResult = `$Downloader.Download()
+    Write-UpdateLog "Descarga completada (codigo: `$(`$DownloadResult.ResultCode))"
+
+    # Instalar
+    Write-UpdateLog "Instalando `$(`$Collection.Count) actualizaciones..."
+    `$Installer = `$UpdateSession.CreateUpdateInstaller()
+    `$Installer.Updates = `$Collection
+    `$InstallResult = `$Installer.Install()
+
+    `$Installed = 0
+    `$RebootNeeded = `$false
+    for (`$i = 0; `$i -lt `$Collection.Count; `$i++) {
+        `$Result = `$InstallResult.GetUpdateResult(`$i)
+        `$UpdateObj = `$Collection.Item(`$i)
+        `$KB = ""
+        if (`$UpdateObj.KBArticleIDs.Count -gt 0) { `$KB = `$UpdateObj.KBArticleIDs.Item(0) }
+        if (-not `$KB) { `$KB = `$UpdateObj.Title }
+
+        if (`$Result.ResultCode -eq 2) {
+            `$Installed++
+            Write-UpdateLog "  OK: `$(`$UpdateObj.Title)"
+            if (`$FailedKBs.ContainsKey(`$KB)) { `$FailedKBs.Remove(`$KB) }
+        } else {
+            `$HResult = "0x{0:X8}" -f `$Result.HResult
+            Write-UpdateLog "  FALLO: `$(`$UpdateObj.Title) (HR: `$HResult)"
+            if (`$FailedKBs.ContainsKey(`$KB)) { `$FailedKBs[`$KB]++ } else { `$FailedKBs[`$KB] = 1 }
+        }
+        if (`$Result.RebootRequired) { `$RebootNeeded = `$true }
+    }
+    Write-UpdateLog "`$Installed de `$(`$Collection.Count) actualizaciones instaladas exitosamente"
+
+    # Guardar historial de fallos para la siguiente iteracion
+    `$FailedKBs.GetEnumerator() | ForEach-Object { "`$(`$_.Key)=`$(`$_.Value)" } | Out-File -FilePath `$FailedPath -Force
+
+    if (`$RebootNeeded) {
+        Write-UpdateLog "Reinicio requerido. Reiniciando en 60 segundos..."
+        shutdown /r /t 60 /c "HCG: Actualizaciones de Windows instaladas. Reiniciando para continuar..."
+    } else {
+        # Verificar si hay mas actualizaciones encadenadas
+        `$Searcher2 = `$UpdateSession.CreateUpdateSearcher()
+        `$SearchResult2 = `$Searcher2.Search("IsInstalled=0 and Type='Software' and IsHidden=0")
+        if (`$SearchResult2.Updates.Count -eq 0) {
+            Write-UpdateLog "No hay mas actualizaciones. Equipo 100% actualizado!"
+            Cleanup-Task
+            Write-UpdateLog "Loop completado exitosamente. Tarea y archivos eliminados."
+        } else {
+            Write-UpdateLog "Hay `$(`$SearchResult2.Updates.Count) actualizaciones adicionales. Reiniciando..."
+            shutdown /r /t 60 /c "HCG: Mas actualizaciones disponibles. Reiniciando para continuar..."
+        }
+    }
+
+} catch {
+    Write-UpdateLog "Error: `$(`$_.Exception.Message)"
+    # Guardar fallos incluso en caso de error
+    `$FailedKBs.GetEnumerator() | ForEach-Object { "`$(`$_.Key)=`$(`$_.Value)" } | Out-File -FilePath `$FailedPath -Force
+}
+"@
+
+    try {
+        Initialize-HCGLogsFolder | Out-Null
+        $ScriptContent | Out-File -FilePath $ScriptPath -Encoding UTF8 -Force
+        Write-Log "Script de loop post-reinicio creado en $ScriptPath" "OK"
+
+        # Crear launcher VBS para ejecucion oculta
+        $VbsLauncher = New-HiddenLauncher -PowerShellScriptPath $ScriptPath
+        Write-Log "Launcher VBS para loop creado" "OK"
+
+        # Inicializar contador y limpiar historial de fallos
+        "0" | Out-File -FilePath $CounterPath -Force
+        Remove-Item "C:\HCG_Logs\update_loop_failed.txt" -Force -ErrorAction SilentlyContinue
+
+        # Eliminar tarea anterior si existe
+        Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
+
+        $Action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$VbsLauncher`""
+
+        # Trigger: al iniciar el sistema, con delay de 2 minutos
+        $Trigger = New-ScheduledTaskTrigger -AtStartup
+        $Trigger.Delay = "PT2M"
+
+        $Settings = New-ScheduledTaskSettingsSet `
+            -AllowStartIfOnBatteries `
+            -DontStopIfGoingOnBatteries `
+            -StartWhenAvailable
+
+        $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
+
+        Register-ScheduledTask -TaskName $TaskName `
+            -Action $Action `
+            -Trigger $Trigger `
+            -Settings $Settings `
+            -Principal $Principal `
+            -Description "HCG - Loop de actualizaciones post-reinicio (se auto-elimina al terminar)" `
+            -Force | Out-Null
+
+        if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
+            Write-Log "Tarea programada '$TaskName' creada (se ejecutara tras reinicio)" "OK"
+        } else {
+            Write-Log "No se pudo verificar la tarea programada '$TaskName'" "WARN"
+        }
+    } catch {
+        Write-Log "Error al registrar loop post-reinicio: $($_.Exception.Message)" "WARN"
+    }
+}
+
 
 function Verify-Configuracion {
     param([string]$NumInventario)
@@ -3417,12 +3948,16 @@ Add-DedalusSyncStartup; Play-StepSound
 Install-Antivirus; Play-StepSound
 Copy-AccesosDirectos; Play-StepSound
 Remove-DuplicateDesktopIcons; Play-StepSound
-Enable-WindowsUpdate; Play-StepSound
-Install-AllWindowsUpdates; Play-StepSound
+# DESACTIVADO - Windows Update se ejecutara despues en sitio para ahorrar tiempo
+# Enable-WindowsUpdate; Play-StepSound
+# Install-AllWindowsUpdates; Play-StepSound
 Remove-AdminUsuarioActual; Play-StepSound
 Install-ReporteIP; Play-StepSound
 Install-ReporteSistema; Play-StepSound
 Install-ReporteDiagnostico; Play-StepSound
+# Install-AutoUpdate deshabilitado - las actualizaciones se manejan manualmente por el tecnico
+Write-Log "Actualizaciones automaticas deshabilitadas (control manual por tecnico)" "INFO"
+Play-StepSound
 
 # Renombrar equipo
 $NuevoNombre = "PC-$NumInventario"
@@ -3668,6 +4203,17 @@ if (-not $EsWindows11) {
     Write-Host "  $Star Este equipo ya tiene Windows 11 (Build $WinBuild)" -ForegroundColor Green
 }
 
+# =============================================================================
+# REINICIO AUTOMATICO - AVE FENIX
+# =============================================================================
 Write-Host ""
-$R = Read-Host "  $Star Reiniciar ahora? (S/N)"
-if ($R -eq "S" -or $R -eq "s") { Restart-Computer -Force }
+Write-Host "  $Star Configuracion completada. El equipo se reiniciara para aplicar cambios..." -ForegroundColor Yellow
+Write-Host ""
+Write-Host "  $([char]0x26A0) IMPORTANTE: Despues del reinicio, ejecuta EJECUTAR_ActualizarWindows.bat" -ForegroundColor Cyan
+Write-Host "  $([char]0x2192) para verificar y completar las actualizaciones pendientes." -ForegroundColor Cyan
+Write-Host ""
+Start-Sleep -Seconds 3
+
+# Mostrar cuenta regresiva del Fenix (60 segundos) y reiniciar
+Show-PhoenixRebootCountdown -Seconds 60
+Restart-Computer -Force

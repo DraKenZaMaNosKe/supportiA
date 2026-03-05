@@ -1,0 +1,1 @@
+Get-Volume | Where-Object { $_.DriveType -eq 'Removable' } | Format-Table DriveLetter, FileSystemLabel, DriveType, @{N='LibreGB';E={[math]::Round($_.SizeRemaining/1GB,1)}}, @{N='TotalGB';E={[math]::Round($_.Size/1GB,1)}} -AutoSize
