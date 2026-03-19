@@ -68,7 +68,7 @@ try {
 # 6. Probar conexion al Apps Script
 Write-Host ""
 Write-Host "  [6] Probando conexion al Apps Script..." -ForegroundColor Yellow
-$URL = "https://script.google.com/macros/s/AKfycbwDAZERvkP6V8sZczvpJgh6LvoXOqwuWymCauicX5dyYGRh5Iym4J5czjHg3tDHbPtP/exec"
+$URL = "https://script.google.com/macros/s/AKfycbyZuDUxWNDUP2h6yTBtRJ-Y1UsOSYvjwt7W1puWjhNnf2NGTXBjZNLm4_ueUvbjujSX/exec"
 
 try {
     # Primero solo GET para ver si responde

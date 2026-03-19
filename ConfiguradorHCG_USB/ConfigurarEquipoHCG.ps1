@@ -66,7 +66,7 @@ $UsuarioSoporte = "Soporte"
 $PasswordSoporte = "*TIsoporte"
 $RutaLogs = "C:\HCG_Logs"
 
-$GoogleSheetURL = "https://script.google.com/macros/s/AKfycbw74FizN4Uql3ZIp4sWT9KdYO8fAargqD-urOfrTreceUJGTeaO79jZXMnL6bqfUc01/exec"
+$GoogleSheetURL = "https://script.google.com/macros/s/AKfycbyZuDUxWNDUP2h6yTBtRJ-Y1UsOSYvjwt7W1puWjhNnf2NGTXBjZNLm4_ueUvbjujSX/exec"
 
 # Variable global para tracking de software instalado
 $Script:SoftwareInstalado = @()
@@ -2916,7 +2916,7 @@ function Install-ReporteIP {
 # HCG - Reporte automatico de IP (cada 3 horas + al iniciar sesion)
 $ErrorActionPreference = "SilentlyContinue"
 try {
-    $GoogleSheetURL = "https://script.google.com/macros/s/AKfycbw74FizN4Uql3ZIp4sWT9KdYO8fAargqD-urOfrTreceUJGTeaO79jZXMnL6bqfUc01/exec"
+    $GoogleSheetURL = "https://script.google.com/macros/s/AKfycbyZuDUxWNDUP2h6yTBtRJ-Y1UsOSYvjwt7W1puWjhNnf2NGTXBjZNLm4_ueUvbjujSX/exec"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     Start-Sleep -Seconds (Get-Random -Minimum 0 -Maximum 120)
     $EthAdapter = Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*Ethernet*" } | Select-Object -First 1
@@ -3020,7 +3020,7 @@ function Install-ReporteSistema {
 # HCG - Reporte de sistema y limpieza automatica (cada inicio de sesion)
 $ErrorActionPreference = "SilentlyContinue"
 try {
-    $GoogleSheetURL = "https://script.google.com/macros/s/AKfycbw74FizN4Uql3ZIp4sWT9KdYO8fAargqD-urOfrTreceUJGTeaO79jZXMnL6bqfUc01/exec"
+    $GoogleSheetURL = "https://script.google.com/macros/s/AKfycbyZuDUxWNDUP2h6yTBtRJ-Y1UsOSYvjwt7W1puWjhNnf2NGTXBjZNLm4_ueUvbjujSX/exec"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     Start-Sleep -Seconds (Get-Random -Minimum 0 -Maximum 180)
 
@@ -3220,7 +3220,7 @@ function Install-ReporteDiagnostico {
 # HCG - Reporte de diagnostico de salud (cada 4 horas + al iniciar sesion)
 $ErrorActionPreference = "SilentlyContinue"
 try {
-    $GoogleSheetURL = "https://script.google.com/macros/s/AKfycbw74FizN4Uql3ZIp4sWT9KdYO8fAargqD-urOfrTreceUJGTeaO79jZXMnL6bqfUc01/exec"
+    $GoogleSheetURL = "https://script.google.com/macros/s/AKfycbyZuDUxWNDUP2h6yTBtRJ-Y1UsOSYvjwt7W1puWjhNnf2NGTXBjZNLm4_ueUvbjujSX/exec"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     Start-Sleep -Seconds (Get-Random -Minimum 0 -Maximum 120)
 

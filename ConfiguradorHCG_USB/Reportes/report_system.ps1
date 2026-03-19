@@ -10,7 +10,7 @@
 $ErrorActionPreference = "SilentlyContinue"
 
 try {
-    $GoogleSheetURL = "https://script.google.com/macros/s/AKfycbw74FizN4Uql3ZIp4sWT9KdYO8fAargqD-urOfrTreceUJGTeaO79jZXMnL6bqfUc01/exec"
+    $GoogleSheetURL = "https://script.google.com/macros/s/AKfycbyZuDUxWNDUP2h6yTBtRJ-Y1UsOSYvjwt7W1puWjhNnf2NGTXBjZNLm4_ueUvbjujSX/exec"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
     # --- Delay aleatorio (0-180 seg) para no saturar el servidor ---

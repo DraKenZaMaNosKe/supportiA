@@ -497,29 +497,29 @@ function formatearFilaCosmica(sheet, fila) {
 function colocarContadorYLeyendaCosmica(sheet) {
   var ultimaFilaDatos = obtenerUltimaFilaDatos(sheet);
   var numEquipos = ultimaFilaDatos - 4;
+  var lastCol = 28;
 
-  // Limpiar filas despues de datos (sin breakApart para evitar error de merge)
+  // Limpiar filas despues de datos (SIN breakApart - no usamos merge)
   var lastRow = sheet.getLastRow();
   if (lastRow > ultimaFilaDatos) {
-    var rangoLimpiar = sheet.getRange(ultimaFilaDatos + 1, 1, lastRow - ultimaFilaDatos, 28);
+    var rangoLimpiar = sheet.getRange(ultimaFilaDatos + 1, 1, lastRow - ultimaFilaDatos, lastCol);
     rangoLimpiar.clearContent();
     rangoLimpiar.clearFormat();
   }
 
-  // --- Separador cosmico (SIN merge - usa toda la fila con fondo) ---
+  // --- Separador cosmico ---
   var filaSep = ultimaFilaDatos + 1;
   var sepLine = "";
   for (var i = 0; i < 50; i++) {
     sepLine += (i % 5 == 0) ? SYM.STAR + " " : SYM.CIRCLE + " ";
   }
-  var rangoSepFull = sheet.getRange(filaSep, 1, 1, 28);
-  rangoSepFull.setBackground(COSMOS.GOLD_DARK);
+  sheet.getRange(filaSep, 1, 1, lastCol).setBackground(COSMOS.GOLD_DARK);
   sheet.getRange(filaSep, 1).setValue(sepLine)
     .setFontColor(COSMOS.TEXT_GOLD)
     .setFontSize(6);
   sheet.setRowHeight(filaSep, 12);
 
-  // --- Contador con barra de progreso cosmica (SIN merge) ---
+  // --- Contador con barra de progreso cosmica ---
   var filaContador = ultimaFilaDatos + 2;
   var progreso = Math.round((numEquipos / 150) * 100 * 10) / 10;
   var fecha = Utilities.formatDate(new Date(), "America/Mexico_City", "dd/MM/yyyy");
@@ -530,8 +530,7 @@ function colocarContadorYLeyendaCosmica(sheet) {
   }
   var textoContador = SYM.SPARK + " Cosmo: " + numEquipos + " de 150 equipos  [" + barra + "] " + progreso + "%  " + SYM.STAR + " Actualizado: " + fecha;
 
-  var rangoContFull = sheet.getRange(filaContador, 1, 1, 28);
-  rangoContFull.setBackground(COSMOS.NIGHT_DARK);
+  sheet.getRange(filaContador, 1, 1, lastCol).setBackground(COSMOS.NIGHT_DARK);
   sheet.getRange(filaContador, 1).setValue(textoContador)
     .setFontColor(COSMOS.TEXT_GOLD)
     .setFontWeight("bold")
@@ -539,39 +538,46 @@ function colocarContadorYLeyendaCosmica(sheet) {
     .setFontFamily("Consolas");
   sheet.setRowHeight(filaContador, 30);
 
-  // --- Leyenda cosmica (SIN merge) ---
+  // --- Leyenda cosmica ---
   var filaLey = filaContador + 2;
 
   // Titulo leyenda
-  var rangoLeyFull = sheet.getRange(filaLey, 1, 1, 28);
-  rangoLeyFull.setBackground(COSMOS.NIGHT_DARK);
+  sheet.getRange(filaLey, 1, 1, lastCol).setBackground(COSMOS.NIGHT_DARK);
   sheet.getRange(filaLey, 1).setValue(SYM.CONSTEL + " LEYENDA COSMICA:")
     .setFontColor(COSMOS.TEXT_GOLD)
     .setFontWeight("bold")
     .setFontSize(10);
 
-  // Activo
+  // Activo - etiqueta en A, descripcion en D (columna mas ancha, el texto desborda)
+  sheet.getRange(filaLey + 1, 1, 1, lastCol).setBackground(COSMOS.NIGHT);
   sheet.getRange(filaLey + 1, 1).setValue(SYM.STAR + " Activo")
-    .setBackground(COSMOS.ACTIVO_BG).setFontColor(COSMOS.ACTIVO_TEXT).setFontWeight("bold");
-  sheet.getRange(filaLey + 1, 2).setValue("Equipo operativo - Cosmo encendido")
-    .setBackground(COSMOS.NIGHT).setFontColor(COSMOS.TEXT_LIGHT);
+    .setBackground(COSMOS.ACTIVO_BG)
+    .setFontColor(COSMOS.ACTIVO_TEXT)
+    .setFontWeight("bold");
+  sheet.getRange(filaLey + 1, 4).setValue("Equipo operativo - Cosmo encendido")
+    .setFontColor(COSMOS.TEXT_LIGHT);
 
   // En proceso
+  sheet.getRange(filaLey + 2, 1, 1, lastCol).setBackground(COSMOS.NIGHT);
   sheet.getRange(filaLey + 2, 1).setValue(SYM.SPARK + " En proceso")
-    .setBackground(COSMOS.PROCESO_BG).setFontColor(COSMOS.PROCESO_TEXT).setFontWeight("bold");
-  sheet.getRange(filaLey + 2, 2).setValue("Configuracion en progreso - Elevando el cosmo")
-    .setBackground(COSMOS.NIGHT).setFontColor(COSMOS.TEXT_LIGHT);
+    .setBackground(COSMOS.PROCESO_BG)
+    .setFontColor(COSMOS.PROCESO_TEXT)
+    .setFontWeight("bold");
+  sheet.getRange(filaLey + 2, 4).setValue("Configuracion en progreso - Elevando el cosmo")
+    .setFontColor(COSMOS.TEXT_LIGHT);
 
   // Baja
+  sheet.getRange(filaLey + 3, 1, 1, lastCol).setBackground(COSMOS.NIGHT);
   sheet.getRange(filaLey + 3, 1).setValue(SYM.CROSS + " Baja")
-    .setBackground(COSMOS.BAJA_BG).setFontColor(COSMOS.BAJA_TEXT).setFontWeight("bold");
-  sheet.getRange(filaLey + 3, 2).setValue("Equipo dado de baja - Cosmo extinguido")
-    .setBackground(COSMOS.NIGHT).setFontColor(COSMOS.TEXT_LIGHT);
+    .setBackground(COSMOS.BAJA_BG)
+    .setFontColor(COSMOS.BAJA_TEXT)
+    .setFontWeight("bold");
+  sheet.getRange(filaLey + 3, 4).setValue("Equipo dado de baja - Cosmo extinguido")
+    .setFontColor(COSMOS.TEXT_LIGHT);
 
-  // --- Frase final epica (SIN merge) ---
+  // --- Frase final epica ---
   var filaFrase = filaLey + 5;
-  var rangoFraseFull = sheet.getRange(filaFrase, 1, 1, 28);
-  rangoFraseFull.setBackground(COSMOS.NIGHT_DARK);
+  sheet.getRange(filaFrase, 1, 1, lastCol).setBackground(COSMOS.NIGHT_DARK);
   sheet.getRange(filaFrase, 1).setValue(SYM.STAR + " Los Caballeros de Informatica protegen esta red " + SYM.STAR + "  |  " + SYM.SHIELD + " Enciende tu cosmo! " + SYM.SHIELD)
     .setFontColor(COSMOS.ATHENA_PURPLE)
     .setFontWeight("bold")
@@ -896,7 +902,6 @@ function crearRegistro(sheet, data) {
   ];
 
   sheet.getRange(newRow, 1, 1, rowData.length).setValues([rowData]);
-  formatearFilaCosmica(sheet, newRow);
   ordenarPorInventario(sheet);
   var filaFinal = buscarEquipoPorInvST(sheet, data.InvST);
   colocarContadorYLeyendaCosmica(sheet);
@@ -1553,8 +1558,9 @@ function limpiarExtras(sheet) {
   var lastRow = sheet.getLastRow();
   var ultimaFilaDatos = obtenerUltimaFilaDatos(sheet);
   if (lastRow > ultimaFilaDatos) {
-    sheet.getRange(ultimaFilaDatos + 1, 1, lastRow - ultimaFilaDatos, 28).clearContent();
-    sheet.getRange(ultimaFilaDatos + 1, 1, lastRow - ultimaFilaDatos, 28).clearFormat();
+    var rangoExtras = sheet.getRange(ultimaFilaDatos + 1, 1, lastRow - ultimaFilaDatos, 28);
+    rangoExtras.clearContent();
+    rangoExtras.clearFormat();
     for (var fila = lastRow; fila > ultimaFilaDatos; fila--) {
       try { sheet.deleteRow(fila); } catch (e) {}
     }
@@ -1592,6 +1598,10 @@ function ordenarPorInventario(sheet) {
     numeros.push([i + 1]);
   }
   sheet.getRange(5, 1, numFilas, 1).setValues(numeros);
+
+  // Re-formatear TODAS las filas despues de ordenar
+  // El sort mueve formato con datos, rompiendo el patron de colores alternados
+  formatearFilasEnLote(sheet, 5, lastRow);
 }
 
 function formatearMAC(mac) {

@@ -5,7 +5,7 @@
 # enviar desde los equipos nuevos
 # =============================================================================
 
-$GoogleSheetURL = "https://script.google.com/macros/s/AKfycbwDAZERvkP6V8sZczvpJgh6LvoXOqwuWymCauicX5dyYGRh5Iym4J5czjHg3tDHbPtP/exec"
+$GoogleSheetURL = "https://script.google.com/macros/s/AKfycbyZuDUxWNDUP2h6yTBtRJ-Y1UsOSYvjwt7W1puWjhNnf2NGTXBjZNLm4_ueUvbjujSX/exec"
 $RutaPendientes = "C:\HCG_Logs"
 $RutaProcesados = "C:\HCG_Logs\Procesados"
 
