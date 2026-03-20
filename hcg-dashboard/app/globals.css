@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+:root {
+  --gold-dark: #8B6914;
+  --gold: #DAA520;
+  --gold-light: #FFD700;
+  --night-dark: #0a0a1a;
+  --night: #12122e;
+  --night-light: #1a1a3e;
+  --cosmos-blue: #1e3a5f;
+  --pegasus-cyan: #00CED1;
+  --athena-purple: #7B2D8E;
+  --activo-bg: #1a3a1a;
+  --activo-text: #66FF66;
+  --proceso-bg: #3a3a1a;
+  --proceso-text: #FFD700;
+  --baja-bg: #3a1a1a;
+  --baja-text: #FF6666;
+  --text-light: #E0E0E0;
+  --text-gold: #FFD700;
+  --text-cyan: #00CED1;
+  --border-dark: #2a2a4a;
+}
+
+body {
+  background: var(--night-dark);
+  color: var(--text-light);
+  font-family: "Consolas", "Courier New", monospace;
+}
+
+/* Scrollbar cósmica */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--night-dark); }
+::-webkit-scrollbar-thumb { background: var(--gold-dark); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
